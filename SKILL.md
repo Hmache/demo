@@ -5,7 +5,7 @@ description: Record a narrated product demo video of a website — opens the giv
 
 # Demo video
 
-Turn **a URL + a scenario in plain text** into a polished MP4: headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in, and optional title/outro cards, a framed browser on a brand-tinted background, spotlight highlights, zooms, callouts, key badges, a progress bar and ducked background music finish it.
+Turn **a URL + a scenario in plain text** into a polished MP4: headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in, and the production layer makes it look like a studio demo: title, section and outro cards with crossfades, a framed browser on a brand-tinted background, chapter labels, a presenter bubble with your photo and live voice bars, logo watermark, spotlight highlights, zooms, callouts, key badges, a progress bar, a QR code on the outro and ducked background music (generated if you have none).
 
 The voice drives the timing: each narration clip is generated **first**, then the recorder holds every step at least as long as its line. Frames are captured with the CDP screencast, which timestamps every frame on the same clock as the steps, so the voice lands on the right action.
 
@@ -18,9 +18,10 @@ The voice drives the timing: each narration clip is generated **first**, then th
 | Narration language / voice | same language as the user's request; Kokoro `af_heart` (en) / `ff_siwis` (fr) |
 | Resolution | 1920×1080 (`size: mobile` for a phone demo; 1280×720 for quick drafts or GIFs) |
 | Captions, progress bar, click highlights, key badges | on |
-| Frame (browser floating on a gradient) | on for desktop and phone demos; off when the user wants raw full-frame screen |
-| Title / outro cards | on when the product name and a call-to-action are known or obvious from the site |
-| Music | off (on only if the user supplies a file) |
+| Template | `template: launch` (framed, presenter bubble, chapters, transitions) unless the user wants raw screen (`walkthrough`), a phone (`mobile`), a vertical social clip (`social`) or nothing extra (`minimal`) |
+| Title / section / outro cards | on: product name + tagline, one `## Section` per part of the demo, a call-to-action outro with a QR code when there is a URL |
+| Presenter photo, logo | only if the user provides the files (ask once, in the same question as the URL/scenario) |
+| Music | `music: auto` (a soft generated ambient bed, ducked under the voice) unless the user supplies a track or says no music |
 | Login | none; if the app needs one, ask for test credentials or a Playwright `storageState` file — never store credentials in the skill or in memory |
 
 Ask with AskUserQuestion only when the URL or scenario is missing, or a login is clearly needed. Otherwise go.
@@ -44,19 +45,24 @@ Write (or take the user's) `scenario.txt`. Settings go at the top, then one bloc
 
 ```text
 url: https://app.example.com
+template: launch
 voice: af_heart
-size: 1920x1080
 title: Acme Orders
 subtitle: Every order, one screen
 outro: Try it free at acme.com
+qr: https://acme.com/signup
 brand color: #2563eb
-frame: yes
+logo: acme-logo.png
+photo: presenter.jpg
+music: auto
 cookies: dismiss
-highlight clicks: yes
-progress bar: yes
 
+## The dashboard
+
+# Everything in one place
 Here's the dashboard: every order from the last 30 days in one place.
 
+# Find a customer
 Let's find a customer by name.
 > type "Dupont" into "Search"
 > press Enter
@@ -75,6 +81,8 @@ Filters narrow thousands of orders down in a second.
 Everything ends up in one place: the customer's history.
 > highlight "Order history"
 ```
+
+**Structure lines**: `## Title` on its own block = a full-screen section card (2.2 s, crossfaded); `# Title` as the first line of a step = a chapter label shown top-left for 3 s (numbered automatically). Use 2–4 sections for anything over a minute; every step should have a label in `launch`/`walkthrough` templates.
 
 **Actions** (one per `>` line):
 
@@ -98,10 +106,11 @@ Everything ends up in one place: the customer's history.
 **Targets** are what the viewer sees: a button or link label, a field's placeholder or label, or any visible text. `#N` picks the N-th match; a bare role word (`checkbox`, `button`, `link`, `textbox`…) picks by role. A CSS selector (`.toggle`, `#save`, `input[name=q]`) also works when text is ambiguous. Page loads after a click or Enter are detected automatically.
 
 **Settings** (all optional except `url`):
-- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (3 s closing card — the call-to-action), `brand color` (#hex for the gradient, subtitle, callouts, highlights and progress bar), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
+- Template: `template: launch | walkthrough | social | mobile | minimal` sets sensible bundles (size, frame, presenter, chapters, transitions); any setting written after it overrides.
+- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (closing card — the call-to-action) + `qr: https://…` (QR code under it), `transitions: yes` (0.5 s crossfades between cards and the recording), `brand color` (#hex for the gradient, labels, callouts, highlights and progress bar), `logo: file.png` (watermark, bottom-right), `presenter: bubble` + `photo: me.jpg` (a pill with the presenter's photo and voice-reactive bars, bottom-left of the recording), `chapters` (yes/no: the `#` labels), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `font` (caption font), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
 - Behaviour: `cookies: dismiss` (auto-dismiss banners after every page load), `typing speed` (ms per char, 55), `pause` (silence after each line, 0.6 s), `locale`, `login state` (Playwright storageState file).
 - Secrets: text in `type`/`fill` can use `$NAME` — it is read from the environment when rendering, so a login step is `> fill "Email" with "$DEMO_USER"` + `> fill "Password" with "$DEMO_PASS"` and the render command is `DEMO_USER=… DEMO_PASS=… make.sh …`. Ask the user for test credentials in chat, pass them only on that command line, never write them in the scenario, the skill or memory. Password fields show dots on screen anyway.
-- Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed` (0.95 = calm demo pace), `pronounce` (`Parla=Par-la, Weepo=Wee-po` — how brand names are spoken), `polish` (yes/no: the audio chain below), `sentence pause` (0.35 s), `music` (path to mp3, ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone), `stability` / `style` (ElevenLabs).
+- Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed` (0.95 = calm demo pace), `pronounce` (`Parla=Par-la, Weepo=Wee-po` — how brand names are spoken), `polish` (yes/no: the audio chain below), `sentence pause` (0.35 s), `music` (path to an mp3, or `auto` for a generated soft ambient bed — always ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone), `stability` / `style` (ElevenLabs).
 Lines starting with `//` are comments.
 
 The scripts also accept the JSON form (`python3 scenario.py scenario.txt` shows it).
@@ -119,7 +128,7 @@ Ask the user for a key only when they want OpenAI/ElevenLabs; pass it as an env 
 
 **Writing the narration** (when the user gave free words): one or two short spoken sentences per step (6–20 words), say *why it matters* rather than narrating clicks ("Filters narrow thousands of orders down in a second", not "I click the filter button"). First step = intro while the page sits still; last step = short takeaway. Put the action the voice describes in the same block. Save the file and show it to the user with the video — it's the editable source.
 
-**Shape of a good demo** (45–90 s, 5–8 steps): title card → one-line hook while the page sits still → 3–5 steps that each show one outcome (the strongest first) → a closing line with the takeaway → outro card with the call-to-action. Use `zoom into` for a number or detail that would be too small to read, `highlight` for the one control the viewer must notice, and `> wait 1s` after a result appears so it can be read. Avoid more than one zoom per step and never zoom during typing. Use `callout` for a benefit the screen doesn't state ("Synced in real time"), at most one or two per demo. **Several languages**: copy the scenario, translate only the narration lines, `title`/`subtitle`/`outro`, and set `voice`/`lang` — the actions stay identical.
+**Shape of a good demo** (45–90 s, 5–8 steps): title card → one-line hook while the page sits still → 2–4 `## sections`, each with 1–3 labelled steps that show one outcome (the strongest first) → a closing line with the takeaway → outro card with the call-to-action and QR code. This is the same structure the commercial demo makers (Synthesia-style templates) use: scene cards, a presenter, lower-thirds, brand kit, music, CTA. Use `zoom into` for a number or detail that would be too small to read, `highlight` for the one control the viewer must notice, and `> wait 1s` after a result appears so it can be read. Avoid more than one zoom per step and never zoom during typing. Use `callout` for a benefit the screen doesn't state ("Synced in real time"), at most one or two per demo. **Several languages**: copy the scenario, translate only the narration lines, `title`/`subtitle`/`outro`, and set `voice`/`lang` — the actions stay identical.
 
 ## 4. Check targets before recording
 
@@ -150,5 +159,6 @@ Common fixes: page still loading when the voice talks about it → `> wait for "
 ## 7. Deliver
 
 - The MP4 in `/mnt/user-data/outputs/` (plus the GIF if asked) and the `scenario.txt`. If a folder is connected, also commit them there.
+- Offer the two things this pipeline cannot do locally, if the user asks for them: a photorealistic talking avatar (needs a hosted service such as HeyGen/D-ID/Synthesia — the presenter bubble is the local stand-in) and studio voices (OpenAI/ElevenLabs engines with a key).
 - Mention `out/captions.srt` for YouTube/LinkedIn uploads, and that editing `scenario.txt` and re-running regenerates the video.
 - One-line summary: duration, resolution, voice used. Offer tweaks (voice, pace, wording, music).

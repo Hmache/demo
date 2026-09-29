@@ -311,10 +311,11 @@ const OVERLAY = `(() => {
     for (let i = 0; i < N; i++) {
       const s = scenario.steps[i];
       const start = now();
-      timing.steps.push({ i, start, say: s.say || '' });
+      timing.steps.push({ i, start, say: s.say || '', label: s.label || '', card: s.card || '' });
+      if (s.card) await sleep((scenario.cardSeconds ?? 2.2) * 1000);   // section card: the page holds while the card is shown
       for (const a of s.actions || []) await run(a);
       const voice = durations[String(i)];
-      const hold = voice != null ? voice + GAP : MIN_HOLD;
+      const hold = voice != null ? voice + GAP + (s.card ? (scenario.cardSeconds ?? 2.2) : 0) : (s.card ? (scenario.cardSeconds ?? 2.2) + 0.3 : MIN_HOLD);
       const rest = hold - (now() - start);
       if (rest > 0) await sleep(rest * 1000);
       timing.steps[i].end = now();

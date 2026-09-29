@@ -32,6 +32,15 @@ SETTINGS = {
     "progress bar": "progressBar", "logo": "logo", "frame": "frame", "background": "frame", "show keys": "showKeys",
     "pronounce": "pronounce", "pronunciation": "pronounce", "polish": "polish", "voice polish": "polish",
     "sentence pause": "sentencePause", "clause pause": "clausePause", "stability": "stability", "style": "style", "similarity": "similarity",
+    "template": "template", "qr": "qr", "presenter": "presenter", "presenter image": "presenterImage", "photo": "presenterImage",
+    "transitions": "transitions", "font": "captionFont", "chapters": "chapters",
+}
+TEMPLATES = {   # bundles of settings; explicit settings written after `template:` override them
+    "launch":      {"viewport": {"width": 1920, "height": 1080}, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "presenter": "bubble", "chapters": True},
+    "walkthrough": {"viewport": {"width": 1920, "height": 1080}, "frame": False, "progressBar": True, "highlightClicks": True, "transitions": True, "chapters": True},
+    "social":      {"viewport": {"width": 1080, "height": 1920}, "scale": 1, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "captions": True},
+    "mobile":      {"viewport": {"width": 390, "height": 844}, "mobile": True, "scale": 2, "frame": True, "progressBar": True, "transitions": True},
+    "minimal":     {"frame": False, "progressBar": False, "highlightClicks": False, "showKeys": False, "captions": True},
 }
 PRESETS = {"mobile": (390, 844), "phone": (390, 844), "tablet": (820, 1180), "desktop": (1920, 1080),
            "hd": (1280, 720), "1080p": (1920, 1080), "720p": (1280, 720), "square": (1080, 1080), "vertical": (1080, 1920)}
@@ -168,6 +177,13 @@ def parse(text):
         val = m.group(2).strip()
         if key == "url":
             sc["url"] = val
+        elif key == "template":
+            if val.lower() not in TEMPLATES:
+                raise ValueError(f"unknown template '{val}' (choose: {', '.join(TEMPLATES)})")
+            sc.update(TEMPLATES[val.lower()])
+            sc["template"] = val.lower()
+        elif key == "music" and val.lower() in ("auto", "yes", "ambient", "generated"):
+            sc["music"] = "auto"
         elif key in ("voice", "engine", "lang", "speed", "model", "instructions", "sentencePause", "clausePause", "stability", "style", "similarity"):
             voice[key] = float(val) if key in ("speed", "sentencePause", "clausePause", "stability", "style", "similarity") else val
         elif key == "polish":
@@ -191,7 +207,7 @@ def parse(text):
                 sc.setdefault("viewport", {"width": 390, "height": 844}); sc.setdefault("scale", 2)
         elif key == "cookies":
             sc["cookies"] = "dismiss" if val.lower() in YES | {"dismiss", "hide", "decline"} else val
-        elif key in ("captions", "gif", "highlightClicks", "progressBar", "frame", "showKeys"):
+        elif key in ("captions", "gif", "highlightClicks", "progressBar", "frame", "showKeys", "transitions", "chapters"):
             sc[key] = val.lower() in YES
         elif key in ("musicVolume", "gapAfterVoice"):
             sc[key] = float(val)
@@ -218,10 +234,21 @@ def parse(text):
             if block:
                 say = " ".join(l for kind, l in block if kind == "say").strip()
                 acts = [a for kind, a in block if kind == "act"]
-                sc["steps"].append({"say": say, "actions": acts})
+                step = {"say": say, "actions": acts}
+                labels = [l for kind, l in block if kind == "label"]
+                cards = [l for kind, l in block if kind == "card"]
+                if labels:
+                    step["label"] = labels[0]
+                if cards:
+                    step["card"] = cards[0]
+                sc["steps"].append(step)
                 block = []
             continue
-        if line.startswith((">", "-", "*", "→")) and not line.startswith("--"):
+        if line.startswith("## "):
+            block.append(("card", line[3:].strip()))        # full-screen section card ("scene" title)
+        elif line.startswith("# "):
+            block.append(("label", line[2:].strip()))       # lower-third label shown at the start of the step
+        elif line.startswith((">", "-", "*", "→")) and not line.startswith("--"):
             block.append(("act", action(line.lstrip(">-*→ ").strip(), n)))
         else:
             block.append(("say", line))

@@ -7,7 +7,7 @@ if ! node -e "require('playwright')" 2>/dev/null && ! NODE_PATH=$(npm root -g) n
   npm install -g playwright >/dev/null 2>&1
   [ -d /opt/pw-browsers ] || npx -y playwright install chromium
 fi
-python3 -c "import kokoro_onnx, soundfile" 2>/dev/null || pip install -q kokoro-onnx soundfile --break-system-packages 2>/dev/null || pip install -q kokoro-onnx soundfile
+python3 -c "import kokoro_onnx, soundfile, qrcode, PIL" 2>/dev/null || pip install -q kokoro-onnx soundfile qrcode pillow --break-system-packages 2>/dev/null || pip install -q kokoro-onnx soundfile qrcode pillow
 R=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
 [ -s "$C/models/kokoro-v1.0.onnx" ] || curl -sSL -o "$C/models/kokoro-v1.0.onnx" $R/kokoro-v1.0.onnx
 [ -s "$C/models/voices-v1.0.bin" ]  || curl -sSL -o "$C/models/voices-v1.0.bin" $R/voices-v1.0.bin

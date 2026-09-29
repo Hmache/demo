@@ -1,36 +1,43 @@
 // demo-video scenario — settings first, then one block per step.
 // Normal lines = narration (spoken + captioned). Lines starting with ">" = actions.
 url: https://app.example.com
+template: launch
 voice: af_heart
-size: 1920x1080
 title: Acme Tasks
 subtitle: The to-do list that stays out of your way
 outro: Try it free at acme.com
+qr: https://acme.com/signup
 brand color: #2563eb
-frame: yes
+music: auto
 cookies: dismiss
-highlight clicks: yes
-progress bar: yes
+// logo: acme.png        photo: presenter.jpg
 
-This is Acme Tasks. Let's add a few things to do.
+## Getting started
 
-Type a task and press Enter — that's it.
+# Add a task
+This is Acme Tasks. Type a task and press Enter — that's it.
 > type "Record the product demo" into "What needs to be done?"
 > press Enter
 > callout "Saved instantly" at "Record the product demo"
 
+# Keep adding
 Add as many as you like.
 > type "Send it to the client" into "What needs to be done?"
 > press Enter
 
+## Staying on top
+
+# Mark it done
 One click marks a task as done.
 > click checkbox #1
 
+# Live counters
 The counters update instantly.
 > zoom into "Done" x2
 > wait 1s
 > zoom out
 
+# Filter
 And the Completed filter shows only what's finished.
 > highlight "Completed"
 > click "Completed"

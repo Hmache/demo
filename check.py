@@ -11,7 +11,7 @@ OUT = sys.argv[1]
 VIDEO = sys.argv[2] if len(sys.argv) > 2 else os.path.join(OUT, "demo.mp4")
 timing = json.load(open(f"{OUT}/timing.json"))
 sc = json.load(open(f"{OUT}/scenario.json")) if os.path.exists(f"{OUT}/scenario.json") else {}
-INTRO = sc.get("titleSeconds", 2.5) if sc.get("title") else 0
+INTRO = json.load(open(f"{OUT}/offsets.json"))["intro"] if os.path.exists(f"{OUT}/offsets.json") else (sc.get("titleSeconds", 2.5) if sc.get("title") else 0)
 T0 = timing["trimStart"]
 steps = [(s["i"], s["start"] - T0 + INTRO, s["end"] - T0 + INTRO, s.get("say", "")) for s in timing["steps"]]
 
@@ -47,8 +47,10 @@ except ImportError:
     print("PIL missing; per-step frames left as " + ", ".join(paths))
 
 # voice onsets vs step starts
-r = subprocess.run(["ffmpeg", "-i", VIDEO, "-af", "silencedetect=n=-40dB:d=0.25", "-f", "null", "-"], capture_output=True, text=True)
-onsets = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", r.stderr)]
+# use the bare voice track when it exists (music would hide the pauses), shifted by the intro card
+vsrc = f"{OUT}/voice.wav" if os.path.exists(f"{OUT}/voice.wav") else VIDEO
+r = subprocess.run(["ffmpeg", "-i", vsrc, "-af", "silencedetect=n=-40dB:d=0.25", "-f", "null", "-"], capture_output=True, text=True)
+onsets = [float(x) + (INTRO if vsrc != VIDEO else 0) for x in re.findall(r"silence_end: ([\d.]+)", r.stderr)]
 dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", VIDEO],
                            capture_output=True, text=True).stdout.strip())
 print(f"video: {dur:.1f}s, {len(steps)} steps, {len(onsets)} voice onsets")

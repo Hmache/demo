@@ -2,7 +2,7 @@
 
 Turn **a URL + a scenario written in plain text** into a narrated product demo video.
 
-Headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in — plus optional title/outro cards, a framed browser on a brand-tinted gradient, spotlight highlights, zooms, callouts, keyboard badges, a progress bar, a phone preset and ducked background music. Output: MP4 (+ optional GIF and `.srt` captions), and a `review.png` contact sheet to check the result at a glance.
+Headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in — plus a production layer: title / section / outro cards with crossfades, a framed browser on a brand-tinted gradient, chapter labels, a presenter bubble (your photo + live voice bars), logo watermark, spotlight highlights, zooms, callouts, keyboard badges, a progress bar, a QR code on the outro, a phone preset and ducked background music (generated if you have none). Output: MP4 (+ optional GIF and `.srt` captions), and a `review.png` contact sheet to check the result at a glance.
 
 Built as an agent skill (`SKILL.md`), but the scripts work on their own too.
 
@@ -12,14 +12,19 @@ Built as an agent skill (`SKILL.md`), but the scripts work on their own too.
 
 ```text
 url: https://app.example.com
-voice: af_heart
+template: launch
 title: Acme Orders
 outro: Try it free at acme.com
-frame: yes
-cookies: dismiss
+qr: https://acme.com/signup
+photo: me.jpg
+music: auto
 
+## The dashboard
+
+# Everything in one place
 Here's the dashboard: every order from the last 30 days in one place.
 
+# Find a customer
 Let's find a customer by name.
 > type "Dupont" into "Search"
 > press Enter
@@ -32,7 +37,7 @@ One click opens the full order history.
 
 Actions: `click` · `hover over` · `type "…" into` · `fill … with "…"` · `select "…" in` · `press` · `scroll down / up / to` · `highlight` · `zoom into` / `zoom out` · `callout "…" at` · `dismiss cookies` · `wait 2s` · `wait for` · `go to` · `js:`.
 
-Settings: `size` (or `mobile`, `square`, `vertical`…), `hd`, `frame`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `show keys`, `cookies: dismiss`, `captions`, `music`, `gif`, `voice`, `engine`, `lang`, `speed`, `typing speed`, `login state`. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. `$VAR` in typed text is read from the environment at render time (for logins). See [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
+Structure: `## Title` = section card, `# Title` = chapter label. Settings: `template` (launch / walkthrough / social / mobile / minimal), `size`, `hd`, `frame`, `transitions`, `presenter` + `photo`, `logo`, `qr`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `show keys`, `cookies: dismiss`, `captions`, `music`, `gif`, `voice`, `engine`, `lang`, `speed`, `typing speed`, `login state`. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. `$VAR` in typed text is read from the environment at render time (for logins). See [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
 
 ## Run it
 
