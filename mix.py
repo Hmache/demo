@@ -24,6 +24,37 @@ T0, END = timing["trimStart"], timing["end"]
 TOTAL = END - T0
 FPS = sc.get("fps", 30)
 
+# 0. Optional "frame": the browser floats with rounded corners and a shadow on a brand-tinted gradient.
+FRAME = bool(sc.get("frame"))
+VW, VH = W, H                     # size of the recorded browser inside the canvas
+FX = FY = 0
+if FRAME:
+    from PIL import Image, ImageDraw, ImageFilter
+    landscape = W >= H
+    k = 0.84 if landscape else 0.86
+    VW, VH = round(W * k), round(H * k)
+    VW -= VW % 2; VH -= VH % 2
+    FX, FY = (W - VW) // 2, round((H - VH) * 0.3)       # above centre: captions live in the band below the video
+    def hexrgb(h): return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+    br = hexrgb(BRAND)
+    top, bottom = (17, 24, 39), tuple(round(0.72 * c + 0.28 * b) for c, b in zip((30, 41, 59), br))
+    bg = Image.new("RGB", (W, H))
+    px = bg.load()
+    for y in range(H):
+        t = y / max(H - 1, 1)
+        col = tuple(round(top[i] * (1 - t) + bottom[i] * t) for i in range(3))
+        for x in range(W):
+            px[x, y] = col
+    rad = round(min(VW, VH) * 0.022)
+    sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle([FX, FY + round(H * 0.012), FX + VW, FY + VH + round(H * 0.012)], rad, fill=(0, 0, 0, 150))
+    sh = sh.filter(ImageFilter.GaussianBlur(round(H * 0.02)))
+    bg = Image.alpha_composite(bg.convert("RGBA"), sh).convert("RGB")
+    bg.save(f"{OUT}/frame_bg.png")
+    mask = Image.new("L", (VW, VH), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, VW - 1, VH - 1], rad, fill=255)
+    mask.save(f"{OUT}/frame_mask.png")
+
 # 1. Variable-rate frame list -> concat demuxer (each frame held until the next one).
 kept = [f for f in frames if f["t"] >= T0]
 before = [f for f in frames if f["t"] < T0]
@@ -57,6 +88,7 @@ with open(f"{OUT}/captions.srt", "w") as fh:
 cap = sc.get("captions", True)
 font = sc.get("captionFont", "Inter")
 fs = round(H * 0.034)
+MV = max(6, round((H - (FY + VH) - fs * 1.9) / 2)) if FRAME else round(H * 0.06)   # caption bottom margin
 ass = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -65,7 +97,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,{font},{fs},&H00FFFFFF,&H00FFFFFF,&H26101010,&H26101010,0,0,0,0,100,100,0,0,3,{round(fs*0.45)},0,2,{round(W*0.12)},{round(W*0.12)},{round(H*0.06)},1
+Style: Cap,{font},{fs},&H00FFFFFF,&H00FFFFFF,&H26101010,&H26101010,0,0,0,0,100,100,0,0,3,{round(fs*0.45)},0,2,{round(W*0.12)},{round(W*0.12)},{MV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -79,12 +111,19 @@ open(f"{OUT}/captions.ass", "w").write(ass)
 
 # 3. ffmpeg graph: video (+captions), narration clips placed at their step start, optional ducked music.
 cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", f"{OUT}/frames.txt"]
-vf = f"fps={FPS},scale={W}:{H}:flags=lanczos,format=yuv420p"
+post = ""
 if (cap and cues) or sc.get("progressBar"):
-    vf += f",ass={OUT}/captions.ass" + (f":fontsdir={FONTS}" if os.path.isdir(FONTS) else "")
-
-filters = [f"[0:v]{vf}[v]"]
-labels, idx = [], 1
+    post += f",ass={OUT}/captions.ass" + (f":fontsdir={FONTS}" if os.path.isdir(FONTS) else "")
+if FRAME:
+    cmd += ["-i", f"{OUT}/frame_bg.png", "-i", f"{OUT}/frame_mask.png"]
+    filters = [f"[0:v]fps={FPS},scale={VW}:{VH}:flags=lanczos,format=rgba[v0]",
+               f"[v0][2:v]alphamerge[v1]",
+               f"[1:v][v1]overlay={FX}:{FY}:format=auto,format=yuv420p{post}[v]"]
+    idx = 3
+else:
+    filters = [f"[0:v]fps={FPS},scale={W}:{H}:flags=lanczos,format=yuv420p{post}[v]"]
+    idx = 1
+labels = []
 for st in timing["steps"]:
     wav = f"{OUT}/audio/step_{st['i']:02d}.wav"
     if str(st["i"]) in durs and os.path.exists(wav):

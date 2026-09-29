@@ -2,7 +2,7 @@
 
 Turn **a URL + a scenario written in plain text** into a narrated product demo video.
 
-Headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in — plus optional title/outro cards, spotlight highlights, zooms, a progress bar, a phone preset and ducked background music. Output: MP4 (+ optional GIF and `.srt` captions), and a `review.png` contact sheet to check the result at a glance.
+Headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in — plus optional title/outro cards, a framed browser on a brand-tinted gradient, spotlight highlights, zooms, callouts, keyboard badges, a progress bar, a phone preset and ducked background music. Output: MP4 (+ optional GIF and `.srt` captions), and a `review.png` contact sheet to check the result at a glance.
 
 Built as an agent skill (`SKILL.md`), but the scripts work on their own too.
 
@@ -15,6 +15,7 @@ url: https://app.example.com
 voice: af_heart
 title: Acme Orders
 outro: Try it free at acme.com
+frame: yes
 cookies: dismiss
 
 Here's the dashboard: every order from the last 30 days in one place.
@@ -26,11 +27,12 @@ Let's find a customer by name.
 One click opens the full order history.
 > click "Dupont SARL"
 > zoom into "Total" x2
+> callout "Loads in under a second" at "Order history"
 ```
 
-Actions: `click` · `hover over` · `type "…" into` · `fill … with "…"` · `select "…" in` · `press` · `scroll down / up / to` · `highlight` · `zoom into` / `zoom out` · `dismiss cookies` · `wait 2s` · `wait for` · `go to` · `js:`.
+Actions: `click` · `hover over` · `type "…" into` · `fill … with "…"` · `select "…" in` · `press` · `scroll down / up / to` · `highlight` · `zoom into` / `zoom out` · `callout "…" at` · `dismiss cookies` · `wait 2s` · `wait for` · `go to` · `js:`.
 
-Settings: `size` (or `mobile`, `square`, `vertical`…), `hd`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `cookies: dismiss`, `captions`, `music`, `gif`, `voice`, `engine`, `lang`, `speed`, `typing speed`, `login state`. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. See [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
+Settings: `size` (or `mobile`, `square`, `vertical`…), `hd`, `frame`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `show keys`, `cookies: dismiss`, `captions`, `music`, `gif`, `voice`, `engine`, `lang`, `speed`, `typing speed`, `login state`. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. `$VAR` in typed text is read from the environment at render time (for logins). See [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
 
 ## Run it
 

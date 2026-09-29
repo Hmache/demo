@@ -39,10 +39,20 @@ const OVERLAY = `(() => {
     .__demo_hl{position:fixed;z-index:2147483645;pointer-events:none;border:3px solid #2563eb;border-radius:8px;
       box-shadow:0 0 0 4px rgba(37,99,235,.25),0 0 0 9999px rgba(15,23,42,.28);opacity:0;transition:opacity .35s}
     .__demo_hl.on{opacity:1}
-    body.__demo_zoom{transition:transform .7s cubic-bezier(.4,0,.2,1)!important}\`;
+    body.__demo_zoom{transition:transform .7s cubic-bezier(.4,0,.2,1)!important}
+    #__demo_cursor.touch{width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(37,99,235,.35);border:2px solid rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+    #__demo_cursor.touch svg{display:none}
+    .__demo_key{position:fixed;right:28px;bottom:28px;z-index:2147483647;pointer-events:none;font:600 20px/1 Inter,system-ui,sans-serif;color:#fff;
+      background:rgba(15,23,42,.88);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:12px 16px;box-shadow:0 4px 16px rgba(0,0,0,.35);
+      opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s}
+    .__demo_key.on{opacity:1;transform:none}
+    .__demo_callout{position:fixed;z-index:2147483646;pointer-events:none;font:600 16px/1.2 Inter,system-ui,sans-serif;color:#fff;background:var(--demo-brand,#2563eb);
+      padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.28);white-space:nowrap;opacity:0;transform:translate(-50%,6px);transition:opacity .25s,transform .25s}
+    .__demo_callout:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--demo-brand,#2563eb)}
+    .__demo_callout.on{opacity:1;transform:translate(-50%,0)}\`;
     document.documentElement.appendChild(st);
     const c = document.createElement('div');
-    c.id = '__demo_cursor';
+    c.id = '__demo_cursor'; if (window.__demoTouch) c.className = 'touch';
     c.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M3 2 L3 21 L8.2 16.3 L11.6 24 L15 22.5 L11.7 14.9 L18.8 14.9 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
     document.documentElement.appendChild(c);
     const p = window.__demoPos; if (p) { c.style.setProperty('--x', p.x + 'px'); c.style.setProperty('--y', p.y + 'px'); }
@@ -57,6 +67,21 @@ const OVERLAY = `(() => {
     r.style.left = e.clientX + 'px'; r.style.top = e.clientY + 'px';
     document.documentElement.appendChild(r); setTimeout(() => r.remove(), 700);
   }, true);
+  window.__demoKey = (label) => {
+    let k = document.getElementById('__demo_key');
+    if (!k) { k = document.createElement('div'); k.id = '__demo_key'; k.className = '__demo_key'; document.documentElement.appendChild(k); }
+    k.textContent = label; k.classList.add('on');
+    clearTimeout(window.__demoKeyT); window.__demoKeyT = setTimeout(() => k.classList.remove('on'), 900);
+  };
+  window.__demoCallout = (text, r) => {          // r = element box, or null to clear
+    let c = document.getElementById('__demo_co');
+    if (!r) { if (c) { c.classList.remove('on'); setTimeout(() => c.remove(), 300); } return; }
+    if (!c) { c = document.createElement('div'); c.id = '__demo_co'; c.className = '__demo_callout'; document.documentElement.appendChild(c); }
+    c.textContent = text;
+    c.style.left = (r.x + r.width / 2) + 'px';
+    c.style.top = 'auto'; c.style.bottom = (window.innerHeight - r.y + 12) + 'px';
+    requestAnimationFrame(() => c.classList.add('on'));
+  };
   window.__demoHighlight = (r) => {            // r = {x,y,width,height} or null to clear
     let h = document.getElementById('__demo_hl');
     if (!r) { if (h) { h.classList.remove('on'); setTimeout(() => h.remove(), 400); } return; }
@@ -91,6 +116,7 @@ const OVERLAY = `(() => {
   if (scenario.storageState) ctxOpts.storageState = scenario.storageState;
   if (scenario.httpCredentials) ctxOpts.httpCredentials = scenario.httpCredentials;
   const ctx = await browser.newContext(ctxOpts);
+  await ctx.addInitScript(`window.__demoTouch = ${!!scenario.mobile}; document.documentElement.style.setProperty('--demo-brand', ${JSON.stringify(scenario.brandColor || '#2563eb')});`);
   await ctx.addInitScript(OVERLAY);
   const page = await ctx.newPage();
   // High-quality capture: CDP screencast gives JPEG frames with wall-clock timestamps,
@@ -215,7 +241,10 @@ const OVERLAY = `(() => {
         await t.loc.pressSequentially(a.text, { delay: DRY ? 0 : (a.delay ?? TYPE_DELAY) }); await sleep(250); break; }
       case 'fill': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.fill(a.text); await sleep(300); break; }
       case 'select': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.selectOption(a.value); await sleep(400); break; }
-      case 'press': { const u = page.url(); await page.keyboard.press(a.key); await sleep(350);
+      case 'press': { const u = page.url();
+        if (scenario.showKeys !== false) { const label = a.key.split('+').map((k) => ({ Meta: '\u2318', Control: 'Ctrl', Alt: '\u2325', Shift: '\u21E7', Enter: '\u21B5 Enter', Escape: 'Esc', ArrowDown: '\u2193', ArrowUp: '\u2191', Tab: 'Tab \u21E5' }[k] || k)).join(' + ');
+          await page.evaluate((l) => window.__demoKey(l), label); await sleep(250); }
+        await page.keyboard.press(a.key); await sleep(350);
         if (a.navigates || page.url() !== u) await settle(); break; }
       case 'scroll': { // smooth wheel scroll by a.y px (or to a.selector)
         let dy = a.y ?? 600;
@@ -235,6 +264,9 @@ const OVERLAY = `(() => {
         const b2 = await t.loc.boundingBox(); if (b2) await moveTo(b2.x + b2.width / 2, b2.y + b2.height / 2);
         await sleep(a.ms ?? 600); break; }
       case 'dismissCookies': console.log('cookies: ' + await dismissCookies()); break;
+      case 'callout': { const t = await target(a.selector); const b = await t.loc.boundingBox();
+        await page.evaluate(([txt, r]) => window.__demoCallout(txt, r), [a.text, b]); await sleep(a.ms ?? 2000);
+        await page.evaluate(() => window.__demoCallout(null, null)); await sleep(300); break; }
       case 'wait': await sleep(a.ms ?? 1000); break;
       case 'waitFor': if (a.state === 'hidden') await page.locator(a.selector).first().waitFor({ state: 'hidden', timeout: a.timeout ?? 20000 });
         else await resolve(a.selector, a.timeout ?? 20000); break;

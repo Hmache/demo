@@ -19,7 +19,7 @@ Format (see example-scenario.txt):
 Blank lines separate steps. Lines starting with ">" are actions, other lines are the narration.
 Targets ("...") are the visible text, placeholder or label of an element (or a CSS selector).
 """
-import json, re, sys
+import json, os, re, sys
 
 SETTINGS = {
     "url": "url", "voice": "voice", "engine": "engine", "lang": "lang", "language": "lang",
@@ -29,7 +29,7 @@ SETTINGS = {
     "model": "model", "instructions": "instructions",
     "title": "title", "subtitle": "subtitle", "outro": "outro", "brand color": "brandColor", "color": "brandColor",
     "mobile": "mobile", "hd": "hd", "retina": "hd", "cookies": "cookies", "highlight clicks": "highlightClicks",
-    "progress bar": "progressBar", "logo": "logo",
+    "progress bar": "progressBar", "logo": "logo", "frame": "frame", "background": "frame", "show keys": "showKeys",
 }
 PRESETS = {"mobile": (390, 844), "phone": (390, 844), "tablet": (820, 1180), "desktop": (1920, 1080),
            "hd": (1280, 720), "1080p": (1920, 1080), "720p": (1280, 720), "square": (1080, 1080), "vertical": (1080, 1920)}
@@ -55,6 +55,16 @@ def target(s):
     return q(s)
 
 
+def env(text):
+    """Expand $NAME / ${NAME} from the environment, so secrets never sit in the scenario file."""
+    def sub(m):
+        name = m.group(1) or m.group(2)
+        if name not in os.environ:
+            raise ValueError(f"environment variable {name} is not set (pass it on the command line: {name}=... make.sh ...)")
+        return os.environ[name]
+    return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)", sub, text)
+
+
 def seconds_to_ms(s):
     m = re.match(r"^([\d.]+)\s*(ms|s|sec|secs|seconds?)?$", s.strip())
     if not m:
@@ -71,13 +81,13 @@ def action(line, n):
     low = s.lower()
     m = re.match(rf"^(?:type|write|enter)\s+{QUOTED}(?:\s+(?:into|in|on)\s+(.+))?$", s, re.I)
     if m:
-        a = {"type": "type", "text": q(m.group(1))}
+        a = {"type": "type", "text": env(q(m.group(1)))}
         if m.group(2):
             a["selector"] = target(m.group(2))
         return a
     m = re.match(rf"^fill\s+(.+?)\s+with\s+{QUOTED}$", s, re.I)
     if m:
-        return {"type": "fill", "selector": target(m.group(1)), "text": q(m.group(2))}
+        return {"type": "fill", "selector": target(m.group(1)), "text": env(q(m.group(2)))}
     m = re.match(rf"^(?:select|choose|pick)\s+{QUOTED}\s+(?:in|from)\s+(.+)$", s, re.I)
     if m:
         return {"type": "select", "value": q(m.group(1)), "selector": target(m.group(2))}
@@ -115,6 +125,12 @@ def action(line, n):
         if m.group(2):
             a["factor"] = float(m.group(2))
         return a
+    m = re.match(rf"^(?:callout|say|label|note)\s+{QUOTED}\s+(?:at|on|near|above)\s+(.+?)(?:\s+for\s+([\d.]+\s*(?:ms|s|sec|seconds?)))?$", s, re.I)
+    if m:
+        a = {"type": "callout", "text": q(m.group(1)), "selector": target(m.group(2))}
+        if m.group(3):
+            a["ms"] = seconds_to_ms(m.group(3))
+        return a
     m = re.match(r"^(?:dismiss|close|hide|reject)\s+(?:the\s+)?cookies?(?:\s+banner)?$", s, re.I)
     if m:
         return {"type": "dismissCookies"}
@@ -129,7 +145,7 @@ def action(line, n):
         return {"type": "eval", "js": m.group(1)}
     raise ValueError(f"line {n}: don't understand the action '{s}'. "
                      "Use click / hover / type \"..\" into / fill .. with \"..\" / select \"..\" in / press / "
-                     "scroll down|up|to / wait 2s / wait for / highlight / zoom into / zoom out / dismiss cookies / go to / js:")
+                     "scroll down|up|to / wait 2s / wait for / highlight / zoom into / zoom out / callout \"..\" at / dismiss cookies / go to / js:")
 
 
 def parse(text):
@@ -169,7 +185,7 @@ def parse(text):
                 sc.setdefault("viewport", {"width": 390, "height": 844}); sc.setdefault("scale", 2)
         elif key == "cookies":
             sc["cookies"] = "dismiss" if val.lower() in YES | {"dismiss", "hide", "decline"} else val
-        elif key in ("captions", "gif", "highlightClicks", "progressBar"):
+        elif key in ("captions", "gif", "highlightClicks", "progressBar", "frame", "showKeys"):
             sc[key] = val.lower() in YES
         elif key in ("musicVolume", "gapAfterVoice"):
             sc[key] = float(val)

@@ -6,6 +6,8 @@ size: 1920x1080
 title: Acme Tasks
 subtitle: The to-do list that stays out of your way
 outro: Try it free at acme.com
+brand color: #2563eb
+frame: yes
 cookies: dismiss
 highlight clicks: yes
 progress bar: yes
@@ -15,6 +17,7 @@ This is Acme Tasks. Let's add a few things to do.
 Type a task and press Enter — that's it.
 > type "Record the product demo" into "What needs to be done?"
 > press Enter
+> callout "Saved instantly" at "Record the product demo"
 
 Add as many as you like.
 > type "Send it to the client" into "What needs to be done?"

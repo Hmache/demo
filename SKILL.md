@@ -5,7 +5,7 @@ description: Record a narrated product demo video of a website — opens the giv
 
 # Demo video
 
-Turn **a URL + a scenario in plain text** into a polished MP4: headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in, and optional title/outro cards, spotlight highlights, zooms, a progress bar and ducked background music finish it.
+Turn **a URL + a scenario in plain text** into a polished MP4: headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in, and optional title/outro cards, a framed browser on a brand-tinted background, spotlight highlights, zooms, callouts, key badges, a progress bar and ducked background music finish it.
 
 The voice drives the timing: each narration clip is generated **first**, then the recorder holds every step at least as long as its line. Frames are captured with the CDP screencast, which timestamps every frame on the same clock as the steps, so the voice lands on the right action.
 
@@ -17,7 +17,8 @@ The voice drives the timing: each narration clip is generated **first**, then th
 | Scenario | required — free words from the user, or a `scenario.txt` they wrote in the format below |
 | Narration language / voice | same language as the user's request; Kokoro `af_heart` (en) / `ff_siwis` (fr) |
 | Resolution | 1920×1080 (`size: mobile` for a phone demo; 1280×720 for quick drafts or GIFs) |
-| Captions, progress bar, click highlights | on |
+| Captions, progress bar, click highlights, key badges | on |
+| Frame (browser floating on a gradient) | on for desktop and phone demos; off when the user wants raw full-frame screen |
 | Title / outro cards | on when the product name and a call-to-action are known or obvious from the site |
 | Music | off (on only if the user supplies a file) |
 | Login | none; if the app needs one, ask for test credentials or a Playwright `storageState` file — never store credentials in the skill or in memory |
@@ -48,6 +49,8 @@ size: 1920x1080
 title: Acme Orders
 subtitle: Every order, one screen
 outro: Try it free at acme.com
+brand color: #2563eb
+frame: yes
 cookies: dismiss
 highlight clicks: yes
 progress bar: yes
@@ -61,6 +64,7 @@ Let's find a customer by name.
 
 One click opens the full order history.
 > click "Dupont SARL"
+> callout "Loads in under a second" at "Order history"
 
 Filters narrow thousands of orders down in a second.
 > select "Last 7 days" in "Period"
@@ -85,6 +89,7 @@ Everything ends up in one place: the customer's history.
 | scroll | `> scroll down` · `> scroll up 300` · `> scroll to "Testimonials"` |
 | highlight (spotlight ring, rest dimmed) | `> highlight "Export"` · `> highlight "Total" for 3s` |
 | zoom | `> zoom into "Revenue chart"` · `> zoom into "Total" x2.5` · `> zoom out` |
+| callout (floating label above an element) | `> callout "Synced in real time" at "Status"` · `… for 3s` |
 | cookie banner | `> dismiss cookies` (clicks a decline/only-necessary button, else hides the banner) |
 | wait | `> wait 2s` · `> wait for "Results"` |
 | open a page | `> go to https://app.example.com/settings` |
@@ -93,8 +98,9 @@ Everything ends up in one place: the customer's history.
 **Targets** are what the viewer sees: a button or link label, a field's placeholder or label, or any visible text. `#N` picks the N-th match; a bare role word (`checkbox`, `button`, `link`, `textbox`…) picks by role. A CSS selector (`.toggle`, `#save`, `input[name=q]`) also works when text is ambiguous. Page loads after a click or Enter are detected automatically.
 
 **Settings** (all optional except `url`):
-- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `title` + `subtitle` (2.5 s intro card), `outro` (3 s closing card — the call-to-action), `brand color` (#hex for the subtitle, highlights and progress bar), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `captions` (yes/no), `gif` (yes/no).
+- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (3 s closing card — the call-to-action), `brand color` (#hex for the gradient, subtitle, callouts, highlights and progress bar), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
 - Behaviour: `cookies: dismiss` (auto-dismiss banners after every page load), `typing speed` (ms per char, 55), `pause` (silence after each line, 0.6 s), `locale`, `login state` (Playwright storageState file).
+- Secrets: text in `type`/`fill` can use `$NAME` — it is read from the environment when rendering, so a login step is `> fill "Email" with "$DEMO_USER"` + `> fill "Password" with "$DEMO_PASS"` and the render command is `DEMO_USER=… DEMO_PASS=… make.sh …`. Ask the user for test credentials in chat, pass them only on that command line, never write them in the scenario, the skill or memory. Password fields show dots on screen anyway.
 - Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed`, `music` (path to mp3, ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone).
 Lines starting with `//` are comments.
 
@@ -109,7 +115,7 @@ Ask the user for a key only when they want OpenAI/ElevenLabs; pass it as an env 
 
 **Writing the narration** (when the user gave free words): one or two short spoken sentences per step (6–20 words), say *why it matters* rather than narrating clicks ("Filters narrow thousands of orders down in a second", not "I click the filter button"). First step = intro while the page sits still; last step = short takeaway. Put the action the voice describes in the same block. Save the file and show it to the user with the video — it's the editable source.
 
-**Shape of a good demo** (45–90 s, 5–8 steps): title card → one-line hook while the page sits still → 3–5 steps that each show one outcome (the strongest first) → a closing line with the takeaway → outro card with the call-to-action. Use `zoom into` for a number or detail that would be too small to read, `highlight` for the one control the viewer must notice, and `> wait 1s` after a result appears so it can be read. Avoid more than one zoom per step and never zoom during typing.
+**Shape of a good demo** (45–90 s, 5–8 steps): title card → one-line hook while the page sits still → 3–5 steps that each show one outcome (the strongest first) → a closing line with the takeaway → outro card with the call-to-action. Use `zoom into` for a number or detail that would be too small to read, `highlight` for the one control the viewer must notice, and `> wait 1s` after a result appears so it can be read. Avoid more than one zoom per step and never zoom during typing. Use `callout` for a benefit the screen doesn't state ("Synced in real time"), at most one or two per demo. **Several languages**: copy the scenario, translate only the narration lines, `title`/`subtitle`/`outro`, and set `voice`/`lang` — the actions stay identical.
 
 ## 4. Check targets before recording
 
