@@ -101,17 +101,21 @@ Everything ends up in one place: the customer's history.
 - Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (3 s closing card — the call-to-action), `brand color` (#hex for the gradient, subtitle, callouts, highlights and progress bar), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
 - Behaviour: `cookies: dismiss` (auto-dismiss banners after every page load), `typing speed` (ms per char, 55), `pause` (silence after each line, 0.6 s), `locale`, `login state` (Playwright storageState file).
 - Secrets: text in `type`/`fill` can use `$NAME` — it is read from the environment when rendering, so a login step is `> fill "Email" with "$DEMO_USER"` + `> fill "Password" with "$DEMO_PASS"` and the render command is `DEMO_USER=… DEMO_PASS=… make.sh …`. Ask the user for test credentials in chat, pass them only on that command line, never write them in the scenario, the skill or memory. Password fields show dots on screen anyway.
-- Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed`, `music` (path to mp3, ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone).
+- Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed` (0.95 = calm demo pace), `pronounce` (`Parla=Par-la, Weepo=Wee-po` — how brand names are spoken), `polish` (yes/no: the audio chain below), `sentence pause` (0.35 s), `music` (path to mp3, ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone), `stability` / `style` (ElevenLabs).
 Lines starting with `//` are comments.
 
 The scripts also accept the JSON form (`python3 scenario.py scenario.txt` shows it).
 
 **Voices**:
-- `kokoro` — default, free, local, no key. English: `af_heart`, `af_bella`, `am_michael`, `am_fenrir`, `bf_emma`, `bm_george`. French: only `ff_siwis` (lang set automatically) — fine for drafts.
+- `kokoro` — default, free, local, no key. English (US): `af_heart` (warm, default), `af_bella`, `af_nova`, `af_sky`, `am_michael`, `am_fenrir`, `am_puck`, `am_onyx` (deep). English (UK): `bf_emma`, `bf_isabella`, `bm_george`, `bm_daniel`. French `ff_siwis`; Spanish `ef_dora`/`em_alex`; Italian `if_sara`/`im_nicola`; Portuguese `pf_dora`/`pm_alex`; Japanese `jf_alpha`; Chinese `zf_xiaoxiao`; Hindi `hf_alpha`. The language is set from the voice prefix automatically. **Blends** make a voice unique: `voice: af_heart*0.7+af_sky*0.3`.
 - `openai` — needs `OPENAI_API_KEY`; voices alloy, ash, coral, sage, verse…; `instructions: warm, confident product demo`. Natural in French.
-- `elevenlabs` — needs `ELEVENLABS_API_KEY`; `voice` = voice ID. Best quality, voice cloning.
+- `elevenlabs` — needs `ELEVENLABS_API_KEY`; `voice` = voice ID; `stability: 0.5`, `style: 0.2`. Best quality, voice cloning.
 - `none` — silent video (captions still shown).
 Ask the user for a key only when they want OpenAI/ElevenLabs; pass it as an env var for that command only, never write it to a file.
+
+**What happens to the voice automatically** (all engines): the narration is rewritten for speech before synthesis — `acme.com/pricing` → "acme dot com slash pricing", `$49/month` → "49 dollars per month", `20%` → "20 percent", `2s` → "2 seconds", `v2.5` → "version 2 point 5", `→` → "then", `⌘+K` → "command K", plus the `pronounce` map — and every clip is silence-trimmed, high-passed, given a little presence, lightly compressed and loudness-normalised to −16 LUFS, so clips sound even and "produced" and background music sits under them. Write the narration as it should be *read* (digits, symbols are fine); write brand names in `pronounce` if the first render mispronounces them.
+
+**Let the user hear the options**: `python3 ~/.cache/demo-video/bin/tts.py --preview "One line from the demo" out fr-fr` writes `out/voices-preview.mp3` — the same line in every recommended voice for that language, each announced by name. Send it when the user asks which voice to use, or when the language has several candidates.
 
 **Writing the narration** (when the user gave free words): one or two short spoken sentences per step (6–20 words), say *why it matters* rather than narrating clicks ("Filters narrow thousands of orders down in a second", not "I click the filter button"). First step = intro while the page sits still; last step = short takeaway. Put the action the voice describes in the same block. Save the file and show it to the user with the video — it's the editable source.
 
@@ -138,6 +142,8 @@ It runs parse → narration → dry run (checks every target fast) → recording
 ## 6. Review your own video before delivering (mandatory)
 
 `make.sh` ends by running `check.py`, which writes `out/review.png` (one frame per step, labelled) and prints the voice-sync report. **Read `out/review.png`** and check every frame: right screen, cursor on the right element, caption readable, no cookie banner / modal / spinner hiding the content, zooms centred on the thing being described. Then read the report: every step's voice should start within ~0.15 s of the step; a `WARNING` or `NO voice onset` line means something is off.
+
+Voice checks: read the printed spoken text (`step N: … <spoken>`) for anything that would sound wrong — a brand name, an acronym, a number — and fix it with `pronounce` or by rewording; a step whose voice lasts more than ~7 s should be split.
 
 Common fixes: page still loading when the voice talks about it → `> wait for "…"`; dead time > 3 s → remove a `> wait` or shorten the line; typing too slow → `typing speed: 35`; captions over important UI → `> scroll down`; a zoom that shows blank space → smaller factor (`x1.5`). Fix and re-render until clean — don't hand over a video with visible problems. Re-run only the review with `python3 ~/.cache/demo-video/bin/check.py out <file>.mp4`.
 

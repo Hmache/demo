@@ -30,6 +30,8 @@ SETTINGS = {
     "title": "title", "subtitle": "subtitle", "outro": "outro", "brand color": "brandColor", "color": "brandColor",
     "mobile": "mobile", "hd": "hd", "retina": "hd", "cookies": "cookies", "highlight clicks": "highlightClicks",
     "progress bar": "progressBar", "logo": "logo", "frame": "frame", "background": "frame", "show keys": "showKeys",
+    "pronounce": "pronounce", "pronunciation": "pronounce", "polish": "polish", "voice polish": "polish",
+    "sentence pause": "sentencePause", "clause pause": "clausePause", "stability": "stability", "style": "style", "similarity": "similarity",
 }
 PRESETS = {"mobile": (390, 844), "phone": (390, 844), "tablet": (820, 1180), "desktop": (1920, 1080),
            "hd": (1280, 720), "1080p": (1920, 1080), "720p": (1280, 720), "square": (1080, 1080), "vertical": (1080, 1920)}
@@ -166,8 +168,12 @@ def parse(text):
         val = m.group(2).strip()
         if key == "url":
             sc["url"] = val
-        elif key in ("voice", "engine", "lang", "speed", "model", "instructions"):
-            voice[key] = float(val) if key == "speed" else val
+        elif key in ("voice", "engine", "lang", "speed", "model", "instructions", "sentencePause", "clausePause", "stability", "style", "similarity"):
+            voice[key] = float(val) if key in ("speed", "sentencePause", "clausePause", "stability", "style", "similarity") else val
+        elif key == "polish":
+            voice["polish"] = val.lower() in YES
+        elif key == "pronounce":   # pronounce: Parla=Par-la, Weepo=Wee-po
+            sc["pronounce"] = {a.strip(): b.strip() for a, b in (pair.split("=", 1) for pair in val.split(",") if "=" in pair)}
         elif key == "size":
             if val.lower() in PRESETS:
                 w, h = PRESETS[val.lower()]
@@ -197,10 +203,10 @@ def parse(text):
     if "url" not in sc:
         raise ValueError("the scenario needs a first line like: url: https://your-site.com")
     if voice:
-        if "voice" in voice and "engine" not in voice and re.match(r"^[a-z]{2}_[a-z]+$", voice["voice"]):
+        if "voice" in voice and "engine" not in voice and re.match(r"^[a-z]{2}_[a-z]+([*+][a-z0-9_.*]+)*$", voice["voice"]):
             voice["engine"] = "kokoro"
-        if voice.get("voice", "").startswith(("ff_",)) and "lang" not in voice:
-            voice["lang"] = "fr-fr"
+        if "lang" not in voice and voice.get("engine", "kokoro") == "kokoro" and voice.get("voice"):
+            voice["lang"] = {"a": "en-us", "b": "en-gb", "f": "fr-fr", "e": "es", "i": "it", "p": "pt-br", "j": "ja", "z": "cmn", "h": "hi"}.get(voice["voice"][:1], "en-us")
         sc["voice"] = voice
     # Steps: blocks separated by blank lines.
     block = []

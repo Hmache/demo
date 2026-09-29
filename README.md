@@ -56,10 +56,12 @@ Requirements: Node 18+, Python 3.10+, ffmpeg.
 
 | Engine | Notes |
 |---|---|
-| `kokoro` (default) | Free, runs locally, no API key. Great in English; one French voice (`ff_siwis`). |
+| `kokoro` (default) | Free, runs locally, no API key. 50+ voices in 9 languages, blendable (`af_heart*0.7+af_sky*0.3`). |
 | `openai` | `OPENAI_API_KEY`, natural in French/English, tone via `instructions`. |
 | `elevenlabs` | `ELEVENLABS_API_KEY`, best quality, voice cloning. |
 | `none` | Silent video, captions only. |
+
+Every clip is prepared for speech (URLs, prices, units, symbols, `pronounce: Parla=Par-la`) and polished (silence trim, EQ, compression, −16 LUFS loudness). `python3 tts.py --preview "a line" out fr-fr` renders the line in every voice for a language so you can pick one.
 
 ## License
 
