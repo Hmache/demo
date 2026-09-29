@@ -1,0 +1,19 @@
+url: https://app.example.com
+voice: af_heart
+size: 1920x1080
+
+This is a simple task manager. Let's add a few things to do.
+
+First, we type a new task and press Enter.
+> type "Record the product demo" into "What needs to be done?"
+> press Enter
+
+We add a second one the same way.
+> type "Send it to the client" into "What needs to be done?"
+> press Enter
+
+Checking the box marks a task as done.
+> click checkbox #1
+
+And the Completed filter shows only finished tasks.
+> click "Completed"

@@ -4,12 +4,15 @@
 //        node record.js scenario.json OUT_DIR --dry      fast run, no capture (checks every selector)
 //        node record.js scenario.json OUT_DIR --explore=N  fast-run the first N steps, then save
 //            OUT_DIR/explore.png and print the visible interactive elements with selectors
+// Scenario: JSON (see scenario.py to convert a plain-text scenario). Targets can be visible text or selectors.
 // Writes OUT_DIR/frames/*.jpg + OUT_DIR/frames.json (CDP screencast, exact timestamps) and OUT_DIR/timing.json
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-const scenario = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const scenario = /\.(txt|md)$/i.test(process.argv[2])
+  ? JSON.parse(require('child_process').execFileSync('python3', [path.join(__dirname, 'scenario.py'), process.argv[2]], { encoding: 'utf8' }))
+  : JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const OUT = process.argv[3];
 const EXP = process.argv.find((a) => a.startsWith('--explore'));
 const EXPLORE_N = EXP ? parseInt(EXP.split('=')[1] ?? '0', 10) || 0 : null;
@@ -101,9 +104,38 @@ const OVERLAY = `(() => {
     pos = { x, y };
   };
 
+  // A target is either a CSS/Playwright selector or plain visible text ("Sign in", "Search", "Completed").
+  // Plain text is matched against buttons, links, tabs, placeholders, labels, then any text.
+  // Add " #2" to pick the 2nd match; a bare role word ("checkbox #1", "button #3") picks by role.
+  const ROLES = ['button', 'link', 'checkbox', 'radio', 'textbox', 'combobox', 'tab', 'menuitem', 'option', 'switch', 'heading', 'img', 'row'];
+  const isSelector = (t) => /^(css=|xpath=|text=|role=|\/\/|[.#\[])/.test(t) || t.includes('>>') || /^[a-z][a-z0-9-]*[.#\[:]/.test(t);
+  const resolve = async (raw, timeout = 15000) => {
+    const m = raw.match(/^(.*?)\s+#(\d+)$/);
+    const t = (m ? m[1] : raw).trim(), idx = m ? parseInt(m[2], 10) - 1 : 0;
+    let cands;
+    if (isSelector(t)) cands = [page.locator(t.replace(/^css=/, ''))];
+    else if (ROLES.includes(t.toLowerCase())) cands = [page.getByRole(t.toLowerCase())];
+    else cands = [
+      ...['button', 'link', 'tab', 'menuitem', 'checkbox', 'radio', 'option', 'switch', 'combobox', 'textbox']
+        .map((r) => page.getByRole(r, { name: t, exact: true })),
+      page.getByPlaceholder(t, { exact: true }), page.getByLabel(t, { exact: true }), page.getByText(t, { exact: true }),
+      ...['button', 'link', 'tab', 'menuitem'].map((r) => page.getByRole(r, { name: t })),
+      page.getByPlaceholder(t), page.getByLabel(t), page.getByText(t),
+    ];
+    const end = Date.now() + timeout;
+    while (Date.now() < end) {
+      for (const c of cands) {
+        const l = c.nth(idx);
+        if (await l.isVisible().catch(() => false)) return l;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new Error(`could not find "${raw}" on ${page.url()} (looked for a button, link, field placeholder/label or text). ` +
+      `Run with --explore to list what is on the page.`);
+  };
+
   const target = async (selector) => {
-    const loc = page.locator(selector).first();
-    await loc.waitFor({ state: 'visible', timeout: 15000 });
+    const loc = await resolve(selector);
     await loc.scrollIntoViewIfNeeded();
     await sleep(250);
     const b = await loc.boundingBox();
@@ -114,25 +146,29 @@ const OVERLAY = `(() => {
     switch (a.type) {
       case 'goto': await page.goto(a.url); await settle(); break;
       case 'click': { const t = await target(a.selector); await moveTo(t.x, t.y); await sleep(150);
+        const u = page.url();
         await page.mouse.down(); await sleep(70); await page.mouse.up(); await sleep(350);
-        if (a.navigates) await settle(); break; }
+        if (a.navigates || page.url() !== u) await settle(); break; }
       case 'hover': { const t = await target(a.selector); await moveTo(t.x, t.y); await sleep(a.ms ?? 600); break; }
-      case 'type': { const t = await target(a.selector); await moveTo(t.x, t.y);
+      case 'type': if (!a.selector) { await page.keyboard.type(a.text, { delay: DRY ? 0 : (a.delay ?? TYPE_DELAY) }); await sleep(250); break; }
+      { const t = await target(a.selector); await moveTo(t.x, t.y);
         if (!(await t.loc.evaluate((el) => el === document.activeElement))) { await page.mouse.down(); await page.mouse.up(); }
         if (a.clear) await t.loc.fill('');
         await t.loc.pressSequentially(a.text, { delay: DRY ? 0 : (a.delay ?? TYPE_DELAY) }); await sleep(250); break; }
       case 'fill': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.fill(a.text); await sleep(300); break; }
       case 'select': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.selectOption(a.value); await sleep(400); break; }
-      case 'press': await page.keyboard.press(a.key); await sleep(350); if (a.navigates) await settle(); break;
+      case 'press': { const u = page.url(); await page.keyboard.press(a.key); await sleep(350);
+        if (a.navigates || page.url() !== u) await settle(); break; }
       case 'scroll': { // smooth wheel scroll by a.y px (or to a.selector)
         let dy = a.y ?? 600;
-        if (a.selector) { const b = await page.locator(a.selector).first().boundingBox(); dy = b.y - (a.offset ?? 120); }
+        if (a.selector) { const b = await (await resolve(a.selector)).boundingBox(); dy = b.y - (a.offset ?? 120); }
         const n = Math.max(10, Math.round(Math.abs(dy) / 40));
         for (let k = 0; k < n; k++) { await page.mouse.wheel(0, dy / n); await sleep(18); }
         await sleep(400); break; }
       case 'moveTo': await moveTo(a.x, a.y); break;
       case 'wait': await sleep(a.ms ?? 1000); break;
-      case 'waitFor': await page.locator(a.selector).first().waitFor({ state: a.state || 'visible', timeout: a.timeout ?? 20000 }); break;
+      case 'waitFor': if (a.state === 'hidden') await page.locator(a.selector).first().waitFor({ state: 'hidden', timeout: a.timeout ?? 20000 });
+        else await resolve(a.selector, a.timeout ?? 20000); break;
       case 'waitForUrl': await page.waitForURL(a.url, { timeout: a.timeout ?? 20000 }); await settle(); break;
       case 'eval': await page.evaluate(a.js); await sleep(300); break;
       default: throw new Error('unknown action ' + a.type);
@@ -155,7 +191,7 @@ const OVERLAY = `(() => {
           : lab ? `${tag}[${e.getAttribute('aria-label') ? 'aria-label' : e.getAttribute('placeholder') ? 'placeholder' : 'name'}="${lab}"]`
           : txt ? `${tag}:has-text('${esc(txt.slice(0, 30))}')` : tag + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : '');
         const r = e.getBoundingClientRect();
-        return [sel, `<${tag}${e.type ? ' type=' + e.type : ''}> "${txt || lab}" @${Math.round(r.x)},${Math.round(r.y)}`];
+        return [sel, `<${tag}${e.type ? ' type=' + e.type : ''}> text: "${txt || lab}" @${Math.round(r.x)},${Math.round(r.y)}`];
       }).map((x, _, all) => { const same = all.filter((y) => y[0] === x[0]);
         return (same.length > 1 ? `${x[0]} >> nth=${same.indexOf(x)}` : x[0]) + '   ' + x[1]; });
     });
