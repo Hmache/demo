@@ -1,0 +1,204 @@
+#!/usr/bin/env node
+// Plays a scenario in headless Chromium and records it.
+// Usage: node record.js scenario.json OUT_DIR            record (reads OUT_DIR/durations.json if present)
+//        node record.js scenario.json OUT_DIR --dry      fast run, no capture (checks every selector)
+//        node record.js scenario.json OUT_DIR --explore=N  fast-run the first N steps, then save
+//            OUT_DIR/explore.png and print the visible interactive elements with selectors
+// Writes OUT_DIR/frames/*.jpg + OUT_DIR/frames.json (CDP screencast, exact timestamps) and OUT_DIR/timing.json
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+
+const scenario = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const OUT = process.argv[3];
+const EXP = process.argv.find((a) => a.startsWith('--explore'));
+const EXPLORE_N = EXP ? parseInt(EXP.split('=')[1] ?? '0', 10) || 0 : null;
+const DRY = process.argv.includes('--dry') || EXPLORE_N !== null;   // fast run, no capture
+const durPath = path.join(OUT, 'durations.json');
+const durations = fs.existsSync(durPath) ? JSON.parse(fs.readFileSync(durPath, 'utf8')) : {};
+const VP = scenario.viewport || { width: 1920, height: 1080 };
+const GAP = scenario.gapAfterVoice ?? 0.6;             // silence after each narration line (s)
+const MIN_HOLD = scenario.minStepHold ?? 1.5;          // min on-screen time for silent steps (s)
+const TYPE_DELAY = scenario.typeDelay ?? 55;           // ms per character
+const sleep = (ms) => new Promise((r) => setTimeout(r, DRY ? Math.min(ms, 20) : ms));
+
+// Fake cursor + click ripple, re-injected on every navigation.
+const OVERLAY = `(() => {
+  const install = () => {
+    if (document.getElementById('__demo_cursor')) return;
+    const st = document.createElement('style');
+    st.textContent = \`#__demo_cursor{position:fixed;left:0;top:0;width:26px;height:26px;z-index:2147483647;pointer-events:none;
+      transform:translate(var(--x,-100px),var(--y,-100px));transition:transform 0s}
+    #__demo_cursor svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+    .__demo_ripple{position:fixed;z-index:2147483646;pointer-events:none;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+      background:rgba(37,99,235,.35);border:2px solid rgba(37,99,235,.9);animation:__demo_r .55s ease-out forwards}
+    @keyframes __demo_r{to{transform:scale(4.2);opacity:0}}\`;
+    document.documentElement.appendChild(st);
+    const c = document.createElement('div');
+    c.id = '__demo_cursor';
+    c.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M3 2 L3 21 L8.2 16.3 L11.6 24 L15 22.5 L11.7 14.9 L18.8 14.9 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    document.documentElement.appendChild(c);
+    const p = window.__demoPos; if (p) { c.style.setProperty('--x', p.x + 'px'); c.style.setProperty('--y', p.y + 'px'); }
+  };
+  document.addEventListener('mousemove', (e) => {
+    window.__demoPos = { x: e.clientX, y: e.clientY };
+    const c = document.getElementById('__demo_cursor'); if (!c) return;
+    c.style.setProperty('--x', e.clientX + 'px'); c.style.setProperty('--y', e.clientY + 'px');
+  }, true);
+  document.addEventListener('mousedown', (e) => {
+    const r = document.createElement('div'); r.className = '__demo_ripple';
+    r.style.left = e.clientX + 'px'; r.style.top = e.clientY + 'px';
+    document.documentElement.appendChild(r); setTimeout(() => r.remove(), 700);
+  }, true);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
+})();`;
+
+(async () => {
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined });
+  const ctxOpts = { viewport: VP, deviceScaleFactor: 1, locale: scenario.locale || 'en-US' };
+  if (scenario.storageState) ctxOpts.storageState = scenario.storageState;
+  if (scenario.httpCredentials) ctxOpts.httpCredentials = scenario.httpCredentials;
+  const ctx = await browser.newContext(ctxOpts);
+  await ctx.addInitScript(OVERLAY);
+  const page = await ctx.newPage();
+  // High-quality capture: CDP screencast gives JPEG frames with wall-clock timestamps,
+  // so frames and step times share one clock (perfect voice sync, no encoder blur).
+  const frames = [];
+  const FR = path.join(OUT, 'frames');
+  const cdp = await ctx.newCDPSession(page);
+  if (!DRY) {
+    fs.rmSync(FR, { recursive: true, force: true });
+    fs.mkdirSync(FR, { recursive: true });
+    cdp.on('Page.screencastFrame', ({ data, metadata, sessionId }) => {
+      const f = `f${String(frames.length).padStart(6, '0')}.jpg`;
+      fs.writeFileSync(path.join(FR, f), Buffer.from(data, 'base64'));
+      frames.push({ f, t: metadata.timestamp * 1000 });
+      cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+    });
+    await cdp.send('Page.startScreencast', { format: 'jpeg', quality: scenario.jpegQuality ?? 92,
+      maxWidth: VP.width, maxHeight: VP.height, everyNthFrame: 1 });
+  }
+  const t0 = Date.now();
+  const now = () => (Date.now() - t0) / 1000;
+  let pos = { x: VP.width / 2, y: VP.height / 2 };
+
+  const settle = async () => {
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
+    await page.mouse.move(pos.x, pos.y);              // re-show cursor after navigation
+  };
+
+  // Eased, visible cursor travel (~350-800 ms depending on distance).
+  const moveTo = async (x, y) => {
+    const dist = Math.hypot(x - pos.x, y - pos.y);
+    const n = Math.max(12, Math.min(40, Math.round(dist / 25)));
+    for (let k = 1; k <= n; k++) {
+      const t = k / n, e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      await page.mouse.move(pos.x + (x - pos.x) * e, pos.y + (y - pos.y) * e);
+      await sleep(16);
+    }
+    pos = { x, y };
+  };
+
+  const target = async (selector) => {
+    const loc = page.locator(selector).first();
+    await loc.waitFor({ state: 'visible', timeout: 15000 });
+    await loc.scrollIntoViewIfNeeded();
+    await sleep(250);
+    const b = await loc.boundingBox();
+    return { loc, x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+
+  const run = async (a) => {
+    switch (a.type) {
+      case 'goto': await page.goto(a.url); await settle(); break;
+      case 'click': { const t = await target(a.selector); await moveTo(t.x, t.y); await sleep(150);
+        await page.mouse.down(); await sleep(70); await page.mouse.up(); await sleep(350);
+        if (a.navigates) await settle(); break; }
+      case 'hover': { const t = await target(a.selector); await moveTo(t.x, t.y); await sleep(a.ms ?? 600); break; }
+      case 'type': { const t = await target(a.selector); await moveTo(t.x, t.y);
+        if (!(await t.loc.evaluate((el) => el === document.activeElement))) { await page.mouse.down(); await page.mouse.up(); }
+        if (a.clear) await t.loc.fill('');
+        await t.loc.pressSequentially(a.text, { delay: DRY ? 0 : (a.delay ?? TYPE_DELAY) }); await sleep(250); break; }
+      case 'fill': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.fill(a.text); await sleep(300); break; }
+      case 'select': { const t = await target(a.selector); await moveTo(t.x, t.y); await t.loc.selectOption(a.value); await sleep(400); break; }
+      case 'press': await page.keyboard.press(a.key); await sleep(350); if (a.navigates) await settle(); break;
+      case 'scroll': { // smooth wheel scroll by a.y px (or to a.selector)
+        let dy = a.y ?? 600;
+        if (a.selector) { const b = await page.locator(a.selector).first().boundingBox(); dy = b.y - (a.offset ?? 120); }
+        const n = Math.max(10, Math.round(Math.abs(dy) / 40));
+        for (let k = 0; k < n; k++) { await page.mouse.wheel(0, dy / n); await sleep(18); }
+        await sleep(400); break; }
+      case 'moveTo': await moveTo(a.x, a.y); break;
+      case 'wait': await sleep(a.ms ?? 1000); break;
+      case 'waitFor': await page.locator(a.selector).first().waitFor({ state: a.state || 'visible', timeout: a.timeout ?? 20000 }); break;
+      case 'waitForUrl': await page.waitForURL(a.url, { timeout: a.timeout ?? 20000 }); await settle(); break;
+      case 'eval': await page.evaluate(a.js); await sleep(300); break;
+      default: throw new Error('unknown action ' + a.type);
+    }
+  };
+
+  const explore = async () => {
+    await page.screenshot({ path: path.join(OUT, 'explore.png') });
+    const els = await page.evaluate(() => {
+      const q = 'a,button,input,textarea,select,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[contenteditable=true],summary,label';
+      const esc = (t) => t.replace(/'/g, "\\'");
+      return [...document.querySelectorAll(q)].filter((e) => {
+        const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+        return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none' && e.id !== '__demo_cursor';
+      }).slice(0, 150).map((e) => {
+        const tag = e.tagName.toLowerCase(), txt = (e.matches('input,textarea,select') ? '' : e.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 50);
+        const lab = e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.getAttribute('name') || '';
+        let sel = e.id ? '#' + CSS.escape(e.id)
+          : e.getAttribute('data-testid') ? `[data-testid="${e.getAttribute('data-testid')}"]`
+          : lab ? `${tag}[${e.getAttribute('aria-label') ? 'aria-label' : e.getAttribute('placeholder') ? 'placeholder' : 'name'}="${lab}"]`
+          : txt ? `${tag}:has-text('${esc(txt.slice(0, 30))}')` : tag + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/)[0] : '');
+        const r = e.getBoundingClientRect();
+        return [sel, `<${tag}${e.type ? ' type=' + e.type : ''}> "${txt || lab}" @${Math.round(r.x)},${Math.round(r.y)}`];
+      }).map((x, _, all) => { const same = all.filter((y) => y[0] === x[0]);
+        return (same.length > 1 ? `${x[0]} >> nth=${same.indexOf(x)}` : x[0]) + '   ' + x[1]; });
+    });
+    console.log(`URL: ${page.url()}\nTITLE: ${await page.title()}\n--- interactive elements ---\n` + els.join('\n'));
+    console.log(`Screenshot: ${OUT}/explore.png`);
+  };
+
+  const timing = { steps: [] };
+  let failed = null;
+  try {
+    await page.goto(scenario.url);
+    await settle();
+    await sleep(400);
+    timing.trimStart = now();                          // cut the blank frames before first paint
+    const N = EXPLORE_N !== null ? Math.min(EXPLORE_N, scenario.steps.length) : scenario.steps.length;
+    for (let i = 0; i < N; i++) {
+      const s = scenario.steps[i];
+      const start = now();
+      timing.steps.push({ i, start, say: s.say || '' });
+      for (const a of s.actions || []) await run(a);
+      const voice = durations[String(i)];
+      const hold = voice != null ? voice + GAP : MIN_HOLD;
+      const rest = hold - (now() - start);
+      if (rest > 0) await sleep(rest * 1000);
+      timing.steps[i].end = now();
+      console.log(`step ${i} ${start.toFixed(2)}s -> ${timing.steps[i].end.toFixed(2)}s`);
+    }
+    if (EXPLORE_N !== null) await explore();
+    await sleep((scenario.outroHold ?? 1.0) * 1000);
+  } catch (e) {
+    failed = e;
+    await page.screenshot({ path: path.join(OUT, 'failure.png') }).catch(() => {});
+  }
+  timing.end = now();
+  if (!DRY) await cdp.send('Page.stopScreencast').catch(() => {});
+  await ctx.close();
+  await browser.close();
+  if (!DRY) {
+    fs.writeFileSync(path.join(OUT, 'frames.json'), JSON.stringify(frames.map((x) => ({ f: x.f, t: (x.t - t0) / 1000 }))));
+    fs.writeFileSync(path.join(OUT, 'timing.json'), JSON.stringify(timing, null, 1));
+  }
+  if (failed) {
+    console.error(`FAILED at step ${timing.steps.length - 1}: ${failed.message}\nScreenshot: ${OUT}/failure.png`);
+    process.exit(1);
+  }
+})();
