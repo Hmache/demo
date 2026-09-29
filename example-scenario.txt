@@ -1,19 +1,33 @@
+// demo-video scenario — settings first, then one block per step.
+// Normal lines = narration (spoken + captioned). Lines starting with ">" = actions.
 url: https://app.example.com
 voice: af_heart
 size: 1920x1080
+title: Acme Tasks
+subtitle: The to-do list that stays out of your way
+outro: Try it free at acme.com
+cookies: dismiss
+highlight clicks: yes
+progress bar: yes
 
-This is a simple task manager. Let's add a few things to do.
+This is Acme Tasks. Let's add a few things to do.
 
-First, we type a new task and press Enter.
+Type a task and press Enter — that's it.
 > type "Record the product demo" into "What needs to be done?"
 > press Enter
 
-We add a second one the same way.
+Add as many as you like.
 > type "Send it to the client" into "What needs to be done?"
 > press Enter
 
-Checking the box marks a task as done.
+One click marks a task as done.
 > click checkbox #1
 
-And the Completed filter shows only finished tasks.
+The counters update instantly.
+> zoom into "Done" x2
+> wait 1s
+> zoom out
+
+And the Completed filter shows only what's finished.
+> highlight "Completed"
 > click "Completed"

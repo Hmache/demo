@@ -27,7 +27,12 @@ SETTINGS = {
     "music": "music", "music volume": "musicVolume", "gif": "gif", "locale": "locale",
     "typing speed": "typeDelay", "pause": "gapAfterVoice", "login state": "storageState",
     "model": "model", "instructions": "instructions",
+    "title": "title", "subtitle": "subtitle", "outro": "outro", "brand color": "brandColor", "color": "brandColor",
+    "mobile": "mobile", "hd": "hd", "retina": "hd", "cookies": "cookies", "highlight clicks": "highlightClicks",
+    "progress bar": "progressBar", "logo": "logo",
 }
+PRESETS = {"mobile": (390, 844), "phone": (390, 844), "tablet": (820, 1180), "desktop": (1920, 1080),
+           "hd": (1280, 720), "1080p": (1920, 1080), "720p": (1280, 720), "square": (1080, 1080), "vertical": (1080, 1920)}
 YES = {"yes", "on", "true", "1"}
 
 
@@ -95,6 +100,24 @@ def action(line, n):
     m = re.match(r"^(?:wait|pause)\s+(?:for\s+)?(.+)$", s, re.I)
     if m:
         return {"type": "wait", "ms": seconds_to_ms(m.group(1))}
+    m = re.match(r"^(?:highlight|show|point out|circle)\s+(.+?)(?:\s+for\s+([\d.]+\s*(?:ms|s|sec|seconds?)))?$", s, re.I)
+    if m:
+        a = {"type": "highlight", "selector": target(m.group(1))}
+        if m.group(2):
+            a["ms"] = seconds_to_ms(m.group(2))
+        return a
+    m = re.match(r"^zoom\s+(?:out|back|reset)$", s, re.I)
+    if m:
+        return {"type": "zoom", "factor": 1}
+    m = re.match(r"^zoom\s+(?:in\s+)?(?:into|on|to|onto)\s+(.+?)(?:\s+(?:x|by\s+)?([\d.]+)x?)?$", s, re.I)
+    if m:
+        a = {"type": "zoom", "selector": target(m.group(1))}
+        if m.group(2):
+            a["factor"] = float(m.group(2))
+        return a
+    m = re.match(r"^(?:dismiss|close|hide|reject)\s+(?:the\s+)?cookies?(?:\s+banner)?$", s, re.I)
+    if m:
+        return {"type": "dismissCookies"}
     m = re.match(r"^(?:hover over|hover on|hover|point at|move to)\s+(.+)$", s, re.I)
     if m:
         return {"type": "hover", "selector": target(m.group(1))}
@@ -106,7 +129,7 @@ def action(line, n):
         return {"type": "eval", "js": m.group(1)}
     raise ValueError(f"line {n}: don't understand the action '{s}'. "
                      "Use click / hover / type \"..\" into / fill .. with \"..\" / select \"..\" in / press / "
-                     "scroll down|up|to / wait 2s / wait for / go to / js:")
+                     "scroll down|up|to / wait 2s / wait for / highlight / zoom into / zoom out / dismiss cookies / go to / js:")
 
 
 def parse(text):
@@ -130,9 +153,23 @@ def parse(text):
         elif key in ("voice", "engine", "lang", "speed", "model", "instructions"):
             voice[key] = float(val) if key == "speed" else val
         elif key == "size":
-            w, h = re.split(r"\s*[x×*]\s*", val.lower())
+            if val.lower() in PRESETS:
+                w, h = PRESETS[val.lower()]
+                if val.lower() in ("mobile", "phone", "tablet"):
+                    sc["mobile"] = True
+                    sc["scale"] = 2
+            else:
+                w, h = re.split(r"\s*[x×*]\s*", val.lower())
             sc["viewport"] = {"width": int(w), "height": int(h)}
-        elif key in ("captions", "gif"):
+        elif key == "hd":
+            sc["scale"] = 2 if val.lower() in YES else 1
+        elif key == "mobile":
+            sc["mobile"] = val.lower() in YES
+            if sc["mobile"]:
+                sc.setdefault("viewport", {"width": 390, "height": 844}); sc.setdefault("scale", 2)
+        elif key == "cookies":
+            sc["cookies"] = "dismiss" if val.lower() in YES | {"dismiss", "hide", "decline"} else val
+        elif key in ("captions", "gif", "highlightClicks", "progressBar"):
             sc[key] = val.lower() in YES
         elif key in ("musicVolume", "gapAfterVoice"):
             sc[key] = float(val)

@@ -35,7 +35,11 @@ const OVERLAY = `(() => {
     #__demo_cursor svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
     .__demo_ripple{position:fixed;z-index:2147483646;pointer-events:none;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
       background:rgba(37,99,235,.35);border:2px solid rgba(37,99,235,.9);animation:__demo_r .55s ease-out forwards}
-    @keyframes __demo_r{to{transform:scale(4.2);opacity:0}}\`;
+    @keyframes __demo_r{to{transform:scale(4.2);opacity:0}}
+    .__demo_hl{position:fixed;z-index:2147483645;pointer-events:none;border:3px solid #2563eb;border-radius:8px;
+      box-shadow:0 0 0 4px rgba(37,99,235,.25),0 0 0 9999px rgba(15,23,42,.28);opacity:0;transition:opacity .35s}
+    .__demo_hl.on{opacity:1}
+    body.__demo_zoom{transition:transform .7s cubic-bezier(.4,0,.2,1)!important}\`;
     document.documentElement.appendChild(st);
     const c = document.createElement('div');
     c.id = '__demo_cursor';
@@ -53,12 +57,37 @@ const OVERLAY = `(() => {
     r.style.left = e.clientX + 'px'; r.style.top = e.clientY + 'px';
     document.documentElement.appendChild(r); setTimeout(() => r.remove(), 700);
   }, true);
+  window.__demoHighlight = (r) => {            // r = {x,y,width,height} or null to clear
+    let h = document.getElementById('__demo_hl');
+    if (!r) { if (h) { h.classList.remove('on'); setTimeout(() => h.remove(), 400); } return; }
+    if (!h) { h = document.createElement('div'); h.id = '__demo_hl'; h.className = '__demo_hl'; document.documentElement.appendChild(h); }
+    const pad = 6;
+    Object.assign(h.style, { left: (r.x - pad) + 'px', top: (r.y - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: (r.height + 2 * pad) + 'px' });
+    requestAnimationFrame(() => h.classList.add('on'));
+  };
+  window.__demoZoom = (k, cx, cy) => {           // k = 1 resets; cx,cy = viewport point that ends up centered
+    const b = document.body; b.classList.add('__demo_zoom');
+    if (k === 1) { b.style.transform = ''; b.style.transformOrigin = ''; return; }
+    const W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
+    const pw = Math.max(W, b.scrollWidth), ph = Math.max(H, b.scrollHeight);
+    const px = cx, py = cy + window.scrollY;          // origin in body coordinates
+    // translate so the point lands in the middle, clamped so no blank area appears
+    let dx = W / 2 - cx, dy = H / 2 - cy;
+    dx = Math.min(dx, (k - 1) * px); dx = Math.max(dx, W - px - (pw - px) * k);
+    dy = Math.min(dy, (k - 1) * py); dy = Math.max(dy, H - py - (ph - py) * k);
+    b.style.transformOrigin = px + 'px ' + py + 'px';
+    b.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')';
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
 })();`;
 
 (async () => {
-  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined });
-  const ctxOpts = { viewport: VP, deviceScaleFactor: 1, locale: scenario.locale || 'en-US' };
+  const DSF = scenario.scale ?? 1;                       // 2 = retina-sharp video (output = viewport x 2)
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: DSF !== 1 ? [`--force-device-scale-factor=${DSF}`] : [] });
+  const ctxOpts = { viewport: VP, deviceScaleFactor: DSF, locale: scenario.locale || 'en-US' };
+  if (scenario.mobile) Object.assign(ctxOpts, { isMobile: true, hasTouch: true,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
   if (scenario.storageState) ctxOpts.storageState = scenario.storageState;
   if (scenario.httpCredentials) ctxOpts.httpCredentials = scenario.httpCredentials;
   const ctx = await browser.newContext(ctxOpts);
@@ -79,16 +108,35 @@ const OVERLAY = `(() => {
       cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
     });
     await cdp.send('Page.startScreencast', { format: 'jpeg', quality: scenario.jpegQuality ?? 92,
-      maxWidth: VP.width, maxHeight: VP.height, everyNthFrame: 1 });
+      maxWidth: VP.width * DSF, maxHeight: VP.height * DSF, everyNthFrame: 1 });
   }
   const t0 = Date.now();
   const now = () => (Date.now() - t0) / 1000;
   let pos = { x: VP.width / 2, y: VP.height / 2 };
 
+  // Cookie banners: click a "decline / only necessary" button if there is one, otherwise hide the banner.
+  const DECLINE = ['Reject all', 'Reject All', 'Decline', 'Decline all', 'Refuse', 'Deny', 'Only necessary', 'Necessary only',
+    'Continue without accepting', 'Tout refuser', 'Refuser', 'Refuser tout', 'Continuer sans accepter', 'Alle ablehnen', 'Rechazar todo'];
+  const dismissCookies = async () => {
+    for (const label of DECLINE) {
+      const b = page.getByRole('button', { name: label }).first();
+      if (await b.isVisible().catch(() => false)) { await b.click({ timeout: 2000 }).catch(() => {}); await sleep(400); return 'clicked ' + label; }
+    }
+    const hidden = await page.evaluate(() => {
+      const sel = '[id*="cookie" i],[class*="cookie" i],[id*="consent" i],[class*="consent" i],[aria-label*="cookie" i],#onetrust-consent-sdk,#CybotCookiebotDialog,.cc-window,#didomi-host,#axeptio_overlay';
+      let n = 0;
+      document.querySelectorAll(sel).forEach((e) => { const r = e.getBoundingClientRect();
+        if (r.width * r.height > 20000 && getComputedStyle(e).position !== 'static') { e.style.setProperty('display', 'none', 'important'); n++; } });
+      document.body.style.overflow = ''; return n;
+    });
+    return hidden ? 'hid ' + hidden : 'none';
+  };
+
   const settle = async () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
+    if (scenario.cookies === 'dismiss') await dismissCookies();
     await page.mouse.move(pos.x, pos.y);              // re-show cursor after navigation
   };
 
@@ -130,8 +178,16 @@ const OVERLAY = `(() => {
       }
       await new Promise((r) => setTimeout(r, 250));
     }
-    throw new Error(`could not find "${raw}" on ${page.url()} (looked for a button, link, field placeholder/label or text). ` +
-      `Run with --explore to list what is on the page.`);
+    const seen = await page.evaluate(() => [...document.querySelectorAll('a,button,input,textarea,select,[role=button],[role=link],[role=tab],label,h1,h2,h3')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2; })
+      .map((e) => (e.matches('input,textarea,select') ? (e.placeholder || e.getAttribute('aria-label') || e.name || '') : (e.innerText || e.getAttribute('aria-label') || '')).trim().replace(/\s+/g, ' ').slice(0, 40))
+      .filter((x) => x)).catch(() => []);
+    const grams = (x) => { x = x.toLowerCase(); const g = new Set(); for (let i = 0; i < x.length - 1; i++) g.add(x.slice(i, i + 2)); return g; };
+    const gt = grams(t);
+    const close = [...new Set(seen)].map((x) => { const gx = grams(x); let c = 0; gt.forEach((b) => { if (gx.has(b)) c++; });
+      return [x, gt.size + gx.size ? (2 * c) / (gt.size + gx.size) : 0]; }).filter((p) => p[1] > 0.25).sort((a, b) => b[1] - a[1]).slice(0, 5).map((p) => `"${p[0]}"`);
+    throw new Error(`could not find "${raw}" on ${page.url()}` + (close.length ? `. Did you mean ${close.join(', ')}?` : '') +
+      ` (looked for a button, link, field placeholder/label or text; run with --explore to list the page)`);
   };
 
   const target = async (selector) => {
@@ -146,6 +202,8 @@ const OVERLAY = `(() => {
     switch (a.type) {
       case 'goto': await page.goto(a.url); await settle(); break;
       case 'click': { const t = await target(a.selector); await moveTo(t.x, t.y); await sleep(150);
+        if (scenario.highlightClicks) { const b = await t.loc.boundingBox(); await page.evaluate((r) => window.__demoHighlight(r), b); await sleep(500);
+          await page.evaluate(() => window.__demoHighlight(null)); await sleep(150); }
         const u = page.url();
         await page.mouse.down(); await sleep(70); await page.mouse.up(); await sleep(350);
         if (a.navigates || page.url() !== u) await settle(); break; }
@@ -166,6 +224,17 @@ const OVERLAY = `(() => {
         for (let k = 0; k < n; k++) { await page.mouse.wheel(0, dy / n); await sleep(18); }
         await sleep(400); break; }
       case 'moveTo': await moveTo(a.x, a.y); break;
+      case 'highlight': { const t = await target(a.selector); await moveTo(t.x, t.y); const b = await t.loc.boundingBox();
+        await page.evaluate((r) => window.__demoHighlight(r), b); await sleep(a.ms ?? 1500);
+        await page.evaluate(() => window.__demoHighlight(null)); await sleep(400); break; }
+      case 'zoom': { // zoom {selector, factor?} zooms towards an element; zoom {factor: 1} resets
+        const k = a.factor ?? 1.8;
+        if (k === 1 || !a.selector) { await page.evaluate(() => window.__demoZoom(1)); await sleep(800); break; }
+        const t = await target(a.selector); await moveTo(t.x, t.y);
+        await page.evaluate(([k, x, y]) => window.__demoZoom(k, x, y), [k, t.x, t.y]); await sleep(750);
+        const b2 = await t.loc.boundingBox(); if (b2) await moveTo(b2.x + b2.width / 2, b2.y + b2.height / 2);
+        await sleep(a.ms ?? 600); break; }
+      case 'dismissCookies': console.log('cookies: ' + await dismissCookies()); break;
       case 'wait': await sleep(a.ms ?? 1000); break;
       case 'waitFor': if (a.state === 'hidden') await page.locator(a.selector).first().waitFor({ state: 'hidden', timeout: a.timeout ?? 20000 });
         else await resolve(a.selector, a.timeout ?? 20000); break;
