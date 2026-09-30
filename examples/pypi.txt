@@ -1,0 +1,39 @@
+// A real-site example: the video in the README was rendered from this file.
+// bash make.sh examples/pypi.txt out pypi-demo.mp4
+url: https://pypi.org/
+template: launch
+size: 1280x720
+title: PyPI
+subtitle: Find, install and publish Python packages
+outro: Explore more at pypi.org
+qr: https://pypi.org
+brand color: #0073b7
+music: auto
+pronounce: PyPI=Pie P I, kokoro-onnx=kokoro onyx
+
+## Finding a package
+
+# 900,000 projects
+PyPI hosts over 900,000 Python projects. Let's open one.
+> highlight "Type '/' to search projects"
+> go to https://pypi.org/project/kokoro-onnx/
+> wait for "Project description"
+
+## The project page
+
+# Install command
+The install command is right at the top, ready to copy.
+> highlight "pip install kokoro-onnx"
+
+# Release history
+The release history shows how actively a project is maintained.
+> click "Release history"
+> wait for "Release notifications"
+> zoom into "Release history" x1.6
+> wait 1s
+> zoom out
+
+# Release files
+And every release ships its files, with hashes, right here.
+> click "Release files"
+> wait 1s
