@@ -277,8 +277,8 @@ else:
     filters += [f"[0:v]fps={FPS},scale={W}:{H}:flags=lanczos[vc]"]
 cur = "[vc]"
 if pill is not None:
-    filters += [f"[{inputs['voice']}:a]showfreqs=s={NB}x{BARS_H}:mode=bar:ascale=cbrt:fscale=log:win_size=32:colors=white|white:rate={FPS},"
-                f"scale={BARS_W}:{BARS_H}:flags=neighbor,format=rgba,colorkey=black:0.3:0.1[bars]",
+    filters += [f"[{inputs['voice']}:a]showfreqs=s={NB}x{BARS_H}:mode=bar:ascale=cbrt:fscale=log:win_size=32:colors=white|white,"   # no 'rate=' (ffmpeg 4.x)
+                f"fps={FPS},scale={BARS_W}:{BARS_H}:flags=neighbor,format=rgba,colorkey=black:0.3:0.1[bars]",
                 f"[{inputs['pill']}:v][bars]overlay={bars_x}:{BARS_Y}:format=auto[pillb]",
                 f"[pillb][{inputs['comb']}:v]overlay={bars_x}:{BARS_Y}:format=auto[pillv]",
                 f"{cur}[pillv]overlay={PX}:{PY}:format=auto[vp]"]
@@ -289,12 +289,13 @@ if LOGO:
 filters += [f"{cur}format=yuv420p{post}[v]"]
 amap = None
 if HAS_VOICE:
-    filters.append(f"[{inputs['voice']}:a]asplit[vo][sc]" if music else f"[{inputs['voice']}:a]anull[vo]")
+    AF = "aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=44100"        # explicit formats keep ffmpeg 4.x happy
+    filters.append(f"[{inputs['voice']}:a]{AF},asplit[vo][sc]" if music else f"[{inputs['voice']}:a]{AF}[vo]")
     amap = "[vo]"
 if music:
     mv = sc.get("musicVolume", 0.25)
     fade = max(TOTAL - 2, 0)
-    filters.append(f"[{inputs['music']}:a]volume={mv},atrim=0:{TOTAL:.3f},afade=t=in:d=1,afade=t=out:st={fade:.2f}:d=2[m]")
+    filters.append(f"[{inputs['music']}:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=44100,volume={mv},atrim=0:{TOTAL:.3f},afade=t=in:d=1,afade=t=out:st={fade:.2f}:d=2[m]")
     if HAS_VOICE:  # duck music under the voice
         filters.append("[m][sc]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[md]")
         filters.append("[vo][md]amix=inputs=2:normalize=0:duration=first[aout]")

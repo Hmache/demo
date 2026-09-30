@@ -26,7 +26,9 @@ The voice drives the timing: each narration clip is generated **first**, then th
 
 Ask with AskUserQuestion only when the URL or scenario is missing, or a login is clearly needed. Otherwise go.
 
-**Where it runs.** Default: the cloud workspace (Chromium is preinstalled). If the URL is `localhost`, a LAN/VPN host, or blocked by the egress proxy (curl returns 403/000), run the whole pipeline on the user's computer with `device_bash` instead (setup.sh installs Playwright + Chromium there), writing the output into their connected folder.
+**Where it runs.** Default: the cloud workspace (Chromium is preinstalled). If the URL is `localhost`, a LAN/VPN host, or blocked by the egress proxy (curl returns 403/000), run the whole pipeline on the user's computer with `device_bash` instead, writing the output into their connected folder. There, `setup.sh` installs Playwright locally and, when Playwright's browser CDN is blocked, fetches a portable ungoogled-chromium from GitHub and stubs any missing X library; `make.sh` picks it up automatically. Keep every `device_bash` call under its time limit: run `tts.py`, `record.js` and `mix.py` as separate calls for long demos.
+
+**Real-site lessons** (already handled by the scripts, but know them): sites with a strict Content-Security-Policy are fine (the overlay uses the CSSOM, never injected stylesheets); a proxy with credentials in `HTTPS_PROXY` is passed to the browser; the recorder prints a `note:` listing hosts that were blocked — if the page looks unstyled in `explore.png`, its CSS/JS CDN is unreachable and a different network is needed; a bot check ("Client Challenge", CAPTCHA) stops the run with a clear error — never try to solve it; use direct URLs (`> go to …`) instead of a site's search, or a `login state`.
 
 ## 2. Install the toolkit (once per session)
 

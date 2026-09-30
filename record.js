@@ -27,72 +27,78 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, DRY ? Math.min(ms, 20) : 
 
 // Fake cursor + click ripple, re-injected on every navigation.
 const OVERLAY = `(() => {
+  // Everything is styled through the CSSOM (element.style / animate()) so it also works on sites with a strict
+  // Content-Security-Policy, which blocks injected <style> elements.
+  const brand = () => getComputedStyle(document.documentElement).getPropertyValue('--demo-brand').trim() || '#2563eb';
+  const css = (el, props) => { for (const k in props) el.style.setProperty(k, props[k], 'important'); return el; };
+  const TOP = 2147483647;
   const install = () => {
     if (document.getElementById('__demo_cursor')) return;
-    const st = document.createElement('style');
-    st.textContent = \`#__demo_cursor{position:fixed;left:0;top:0;width:26px;height:26px;z-index:2147483647;pointer-events:none;
-      transform:translate(var(--x,-100px),var(--y,-100px));transition:transform 0s}
-    #__demo_cursor svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
-    .__demo_ripple{position:fixed;z-index:2147483646;pointer-events:none;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
-      background:rgba(37,99,235,.35);border:2px solid rgba(37,99,235,.9);animation:__demo_r .55s ease-out forwards}
-    @keyframes __demo_r{to{transform:scale(4.2);opacity:0}}
-    .__demo_hl{position:fixed;z-index:2147483645;pointer-events:none;border:3px solid #2563eb;border-radius:8px;
-      box-shadow:0 0 0 4px rgba(37,99,235,.25),0 0 0 9999px rgba(15,23,42,.28);opacity:0;transition:opacity .35s}
-    .__demo_hl.on{opacity:1}
-    body.__demo_zoom{transition:transform .7s cubic-bezier(.4,0,.2,1)!important}
-    #__demo_cursor.touch{width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(37,99,235,.35);border:2px solid rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(0,0,0,.3)}
-    #__demo_cursor.touch svg{display:none}
-    .__demo_key{position:fixed;right:28px;bottom:28px;z-index:2147483647;pointer-events:none;font:600 20px/1 Inter,system-ui,sans-serif;color:#fff;
-      background:rgba(15,23,42,.88);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:12px 16px;box-shadow:0 4px 16px rgba(0,0,0,.35);
-      opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s}
-    .__demo_key.on{opacity:1;transform:none}
-    .__demo_callout{position:fixed;z-index:2147483646;pointer-events:none;font:600 16px/1.2 Inter,system-ui,sans-serif;color:#fff;background:var(--demo-brand,#2563eb);
-      padding:10px 14px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.28);white-space:nowrap;opacity:0;transform:translate(-50%,6px);transition:opacity .25s,transform .25s}
-    .__demo_callout:after{content:'';position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--demo-brand,#2563eb)}
-    .__demo_callout.on{opacity:1;transform:translate(-50%,0)}\`;
-    document.documentElement.appendChild(st);
     const c = document.createElement('div');
-    c.id = '__demo_cursor'; if (window.__demoTouch) c.className = 'touch';
-    c.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26"><path d="M3 2 L3 21 L8.2 16.3 L11.6 24 L15 22.5 L11.7 14.9 L18.8 14.9 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    c.id = '__demo_cursor';
+    css(c, { position: 'fixed', left: '0', top: '0', width: '26px', height: '26px', 'z-index': String(TOP), 'pointer-events': 'none',
+      transform: 'translate(-100px,-100px)', margin: '0', padding: '0' });
+    if (window.__demoTouch) css(c, { width: '34px', height: '34px', margin: '-17px 0 0 -17px', 'border-radius': '50%', background: 'rgba(37,99,235,.35)',
+      border: '2px solid rgba(255,255,255,.9)', 'box-shadow': '0 2px 8px rgba(0,0,0,.3)', 'box-sizing': 'border-box' });
+    else c.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))"><path d="M3 2 L3 21 L8.2 16.3 L11.6 24 L15 22.5 L11.7 14.9 L18.8 14.9 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
     document.documentElement.appendChild(c);
-    const p = window.__demoPos; if (p) { c.style.setProperty('--x', p.x + 'px'); c.style.setProperty('--y', p.y + 'px'); }
+    const p = window.__demoPos; if (p) c.style.setProperty('transform', 'translate(' + p.x + 'px,' + p.y + 'px)', 'important');
   };
   document.addEventListener('mousemove', (e) => {
     window.__demoPos = { x: e.clientX, y: e.clientY };
     const c = document.getElementById('__demo_cursor'); if (!c) return;
-    c.style.setProperty('--x', e.clientX + 'px'); c.style.setProperty('--y', e.clientY + 'px');
+    c.style.setProperty('transform', 'translate(' + e.clientX + 'px,' + e.clientY + 'px)', 'important');
   }, true);
   document.addEventListener('mousedown', (e) => {
-    const r = document.createElement('div'); r.className = '__demo_ripple';
-    r.style.left = e.clientX + 'px'; r.style.top = e.clientY + 'px';
-    document.documentElement.appendChild(r); setTimeout(() => r.remove(), 700);
+    const r = document.createElement('div');
+    css(r, { position: 'fixed', 'z-index': String(TOP - 1), 'pointer-events': 'none', width: '14px', height: '14px', margin: '-7px 0 0 -7px',
+      'border-radius': '50%', background: 'rgba(37,99,235,.35)', border: '2px solid rgba(37,99,235,.9)', left: e.clientX + 'px', top: e.clientY + 'px' });
+    document.documentElement.appendChild(r);
+    r.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(4.2)', opacity: 0 }], { duration: 550, easing: 'ease-out', fill: 'forwards' });
+    setTimeout(() => r.remove(), 700);
   }, true);
   window.__demoKey = (label) => {
     let k = document.getElementById('__demo_key');
-    if (!k) { k = document.createElement('div'); k.id = '__demo_key'; k.className = '__demo_key'; document.documentElement.appendChild(k); }
-    k.textContent = label; k.classList.add('on');
-    clearTimeout(window.__demoKeyT); window.__demoKeyT = setTimeout(() => k.classList.remove('on'), 900);
+    if (!k) { k = document.createElement('div'); k.id = '__demo_key';
+      css(k, { position: 'fixed', right: '28px', bottom: '28px', 'z-index': String(TOP), 'pointer-events': 'none', font: '600 20px/1 Inter,system-ui,sans-serif',
+        color: '#fff', background: 'rgba(15,23,42,.88)', border: '1px solid rgba(255,255,255,.25)', 'border-radius': '10px', padding: '12px 16px',
+        'box-shadow': '0 4px 16px rgba(0,0,0,.35)', opacity: '0', transform: 'translateY(8px)', transition: 'opacity .18s, transform .18s' });
+      document.documentElement.appendChild(k); }
+    k.textContent = label;
+    requestAnimationFrame(() => { k.style.setProperty('opacity', '1', 'important'); k.style.setProperty('transform', 'none', 'important'); });
+    clearTimeout(window.__demoKeyT);
+    window.__demoKeyT = setTimeout(() => { k.style.setProperty('opacity', '0', 'important'); k.style.setProperty('transform', 'translateY(8px)', 'important'); }, 900);
   };
   window.__demoCallout = (text, r) => {          // r = element box, or null to clear
     let c = document.getElementById('__demo_co');
-    if (!r) { if (c) { c.classList.remove('on'); setTimeout(() => c.remove(), 300); } return; }
-    if (!c) { c = document.createElement('div'); c.id = '__demo_co'; c.className = '__demo_callout'; document.documentElement.appendChild(c); }
-    c.textContent = text;
-    c.style.left = (r.x + r.width / 2) + 'px';
-    c.style.top = 'auto'; c.style.bottom = (window.innerHeight - r.y + 12) + 'px';
-    requestAnimationFrame(() => c.classList.add('on'));
+    if (!r) { if (c) { c.style.setProperty('opacity', '0', 'important'); setTimeout(() => c.remove(), 300); } return; }
+    if (!c) { c = document.createElement('div'); c.id = '__demo_co';
+      css(c, { position: 'fixed', 'z-index': String(TOP - 1), 'pointer-events': 'none', font: '600 16px/1.2 Inter,system-ui,sans-serif', color: '#fff',
+        background: brand(), padding: '10px 14px', 'border-radius': '10px', 'box-shadow': '0 6px 20px rgba(0,0,0,.28)', 'white-space': 'nowrap',
+        opacity: '0', transform: 'translate(-50%,6px)', transition: 'opacity .25s, transform .25s' });
+      const tip = document.createElement('div');
+      css(tip, { position: 'absolute', left: '50%', bottom: '-6px', width: '12px', height: '12px', 'margin-left': '-6px', background: brand(), transform: 'rotate(45deg)', 'border-radius': '2px' });
+      c.appendChild(tip); document.documentElement.appendChild(c); }
+    if (c.childNodes.length > 1) c.removeChild(c.firstChild);
+    c.insertBefore(document.createTextNode(text), c.firstChild);
+    c.style.setProperty('left', (r.x + r.width / 2) + 'px', 'important');
+    c.style.setProperty('bottom', (window.innerHeight - r.y + 12) + 'px', 'important');
+    requestAnimationFrame(() => { c.style.setProperty('opacity', '1', 'important'); c.style.setProperty('transform', 'translate(-50%,0)', 'important'); });
   };
   window.__demoHighlight = (r) => {            // r = {x,y,width,height} or null to clear
     let h = document.getElementById('__demo_hl');
-    if (!r) { if (h) { h.classList.remove('on'); setTimeout(() => h.remove(), 400); } return; }
-    if (!h) { h = document.createElement('div'); h.id = '__demo_hl'; h.className = '__demo_hl'; document.documentElement.appendChild(h); }
+    if (!r) { if (h) { h.style.setProperty('opacity', '0', 'important'); setTimeout(() => h.remove(), 400); } return; }
+    if (!h) { h = document.createElement('div'); h.id = '__demo_hl';
+      css(h, { position: 'fixed', 'z-index': String(TOP - 2), 'pointer-events': 'none', border: '3px solid ' + brand(), 'border-radius': '8px',
+        'box-shadow': '0 0 0 4px rgba(37,99,235,.25), 0 0 0 9999px rgba(15,23,42,.28)', opacity: '0', transition: 'opacity .35s', 'box-sizing': 'border-box' });
+      document.documentElement.appendChild(h); }
     const pad = 6;
-    Object.assign(h.style, { left: (r.x - pad) + 'px', top: (r.y - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: (r.height + 2 * pad) + 'px' });
-    requestAnimationFrame(() => h.classList.add('on'));
+    css(h, { left: (r.x - pad) + 'px', top: (r.y - pad) + 'px', width: (r.width + 2 * pad) + 'px', height: (r.height + 2 * pad) + 'px' });
+    requestAnimationFrame(() => h.style.setProperty('opacity', '1', 'important'));
   };
   window.__demoZoom = (k, cx, cy) => {           // k = 1 resets; cx,cy = viewport point that ends up centered
-    const b = document.body; b.classList.add('__demo_zoom');
-    if (k === 1) { b.style.transform = ''; b.style.transformOrigin = ''; return; }
+    const b = document.body; b.style.setProperty('transition', 'transform .7s cubic-bezier(.4,0,.2,1)', 'important');
+    if (k === 1) { b.style.removeProperty('transform'); b.style.removeProperty('transform-origin'); return; }
     const W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
     const pw = Math.max(W, b.scrollWidth), ph = Math.max(H, b.scrollHeight);
     const px = cx, py = cy + window.scrollY;          // origin in body coordinates
@@ -100,16 +106,22 @@ const OVERLAY = `(() => {
     let dx = W / 2 - cx, dy = H / 2 - cy;
     dx = Math.min(dx, (k - 1) * px); dx = Math.max(dx, W - px - (pw - px) * k);
     dy = Math.min(dy, (k - 1) * py); dy = Math.max(dy, H - py - (ph - py) * k);
-    b.style.transformOrigin = px + 'px ' + py + 'px';
-    b.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')';
+    b.style.setProperty('transform-origin', px + 'px ' + py + 'px', 'important');
+    b.style.setProperty('transform', 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')', 'important');
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
 })();`;
 
 (async () => {
   const DSF = scenario.scale ?? 1;                       // 2 = retina-sharp video (output = viewport x 2)
-  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: DSF !== 1 ? [`--force-device-scale-factor=${DSF}`] : [] });
+  const launch = { headless: true, executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: [...(DSF !== 1 ? [`--force-device-scale-factor=${DSF}`] : []),
+           ...(process.env.CHROMIUM_PATH ? ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] : [])] };
+  // Proxy: DEMO_PROXY, or HTTPS_PROXY when it carries credentials (Chromium can't read those from the env itself).
+  const px = process.env.DEMO_PROXY || [process.env.HTTPS_PROXY, process.env.https_proxy].find((v) => v && /\/\/[^/]*:[^/]*@/.test(v));
+  if (px) { try { const u = new URL(px);
+    launch.proxy = { server: `${u.protocol}//${u.hostname}:${u.port}`, username: decodeURIComponent(u.username), password: decodeURIComponent(u.password), bypass: process.env.NO_PROXY || 'localhost,127.0.0.1' }; } catch (e) {} }
+  const browser = await chromium.launch(launch);
   const ctxOpts = { viewport: VP, deviceScaleFactor: DSF, locale: scenario.locale || 'en-US' };
   if (scenario.mobile) Object.assign(ctxOpts, { isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' });
@@ -133,8 +145,11 @@ const OVERLAY = `(() => {
       frames.push({ f, t: metadata.timestamp * 1000 });
       cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
     });
-    await cdp.send('Page.startScreencast', { format: 'jpeg', quality: scenario.jpegQuality ?? 92,
-      maxWidth: VP.width * DSF, maxHeight: VP.height * DSF, everyNthFrame: 1 });
+    const screencast = () => cdp.send('Page.startScreencast', { format: 'jpeg', quality: scenario.jpegQuality ?? 92,
+      maxWidth: VP.width * DSF, maxHeight: VP.height * DSF, everyNthFrame: 1 }).catch(() => {});
+    await screencast();
+    // Some Chromium builds stop streaming after a cross-site navigation (new renderer): restart the screencast then.
+    page.on('framenavigated', (f) => { if (f === page.mainFrame()) screencast(); });
   }
   const t0 = Date.now();
   const now = () => (Date.now() - t0) / 1000;
@@ -158,10 +173,17 @@ const OVERLAY = `(() => {
     return hidden ? 'hid ' + hidden : 'none';
   };
 
+  const blocked = new Map();                          // host -> count of failed requests (blocked CDNs make pages look unstyled)
+  page.on('requestfailed', (r) => { try { const h = new URL(r.url()).host; blocked.set(h, (blocked.get(h) || 0) + 1); } catch (e) {} });
+  page.on('response', (r) => { if (r.status() === 403) { try { const h = new URL(r.url()).host; blocked.set(h, (blocked.get(h) || 0) + 1); } catch (e) {} } });
   const settle = async () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
+    const title = await page.title().catch(() => '');
+    if (/client challenge|just a moment|are you a robot|captcha|access denied|attention required/i.test(title))
+      throw new Error(`the site answered with a bot check ("${title}") at ${page.url()}. Demos can't solve those: use direct URLs instead of site search, a logged-in "login state", or record from a network the site trusts.`);
+    if (blocked.size) { console.log('note: some requests were blocked or failed (' + [...blocked].map(([h, n]) => `${h}: ${n}`).join(', ') + ') — if the page looks unstyled, those hosts are not reachable from here'); blocked.clear(); }
     if (scenario.cookies === 'dismiss') await dismissCookies();
     await page.mouse.move(pos.x, pos.y);              // re-show cursor after navigation
   };

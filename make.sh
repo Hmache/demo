@@ -3,7 +3,11 @@
 # Usage: make.sh scenario.txt|scenario.json OUT_DIR [output.mp4]
 set -e
 D="$(cd "$(dirname "$0")" && pwd)"; S="$1"; O="$2"; F="${3:-$O/demo.mp4}"
-export NODE_PATH="$(npm root -g)"
+export NODE_PATH="${NODE_PATH:-$(npm root -g)}"
+C=~/.cache/demo-video
+[ -x "$C/chromium/chrome" ] && export CHROMIUM_PATH="${CHROMIUM_PATH:-$C/chromium/chrome}" LD_LIBRARY_PATH="$C/stublib:$LD_LIBRARY_PATH"
+[ -d "$C/node/node_modules" ] && export NODE_PATH="$C/node/node_modules:$NODE_PATH"
+export PATH="$HOME/.local/bin:$PATH"
 mkdir -p "$O"; rm -f "$O/durations.json"; rm -rf "$O/audio"
 case "$S" in *.txt|*.md) python3 "$D/scenario.py" "$S" > "$O/scenario.json"; S="$O/scenario.json";; esac
 echo "== 1/5 narration";  python3 "$D/tts.py" "$S" "$O"
