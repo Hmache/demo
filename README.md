@@ -6,6 +6,10 @@ Headless Chromium plays the scenario with a visible animated cursor and click ri
 
 Built as an agent skill for Claude (`SKILL.md`), but the scripts work on their own from any terminal.
 
+A 37-second demo of pypi.org made by the skill from a 30-line scenario — title card, chapters, zoom, recap and outro, Kokoro voice, generated music:
+
+https://github.com/user-attachments/assets/a23bea85-cb5e-4b53-be69-a828de79c04f
+
 ```text
 scenario.txt  ──►  tts.py (voice clips)  ──►  record.js (Playwright + CDP screencast)  ──►  mix.py (ffmpeg)  ──►  demo.mp4
                                                                                         └──►  check.py  ──►  review.png + sync report
