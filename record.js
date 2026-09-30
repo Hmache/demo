@@ -188,13 +188,21 @@ const OVERLAY = `(() => {
     await page.mouse.move(pos.x, pos.y);              // re-show cursor after navigation
   };
 
-  // Eased, visible cursor travel (~350-800 ms depending on distance).
+  // Eased, visible cursor travel (~350-800 ms depending on distance) along a gentle arc, like a hand on a mouse:
+  // a straight line at constant speed is the first thing that reads as "robot".
+  let arcSide = 1;
   const moveTo = async (x, y) => {
     const dist = Math.hypot(x - pos.x, y - pos.y);
+    if (dist < 2) { pos = { x, y }; return; }
     const n = Math.max(12, Math.min(40, Math.round(dist / 25)));
+    const bend = Math.min(dist * 0.12, 60) * arcSide; arcSide = -arcSide;      // control point offset, perpendicular to the path
+    const nx = -(y - pos.y) / dist, ny = (x - pos.x) / dist;
+    const cx = (pos.x + x) / 2 + nx * bend, cy = (pos.y + y) / 2 + ny * bend;
+    const x0 = pos.x, y0 = pos.y;
     for (let k = 1; k <= n; k++) {
-      const t = k / n, e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      await page.mouse.move(pos.x + (x - pos.x) * e, pos.y + (y - pos.y) * e);
+      const t = k / n, e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;   // ease in-out
+      const u = 1 - e;
+      await page.mouse.move(u * u * x0 + 2 * u * e * cx + e * e * x, u * u * y0 + 2 * u * e * cy + e * e * y);   // quadratic Bezier
       await sleep(16);
     }
     pos = { x, y };
@@ -318,8 +326,19 @@ const OVERLAY = `(() => {
       }).map((x, _, all) => { const same = all.filter((y) => y[0] === x[0]);
         return (same.length > 1 ? `${x[0]} >> nth=${same.indexOf(x)}` : x[0]) + '   ' + x[1]; });
     });
+    const facts = await page.evaluate(() => {
+      const vis = (e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+      const txt = (e) => (e.innerText || '').trim().replace(/\s+/g, ' ');
+      const meta = (n) => (document.querySelector(`meta[name="${n}"],meta[property="${n}"]`) || {}).content || '';
+      return { title: document.title, description: meta('description') || meta('og:description'), lang: document.documentElement.lang || '',
+        headings: [...document.querySelectorAll('h1,h2,h3')].filter(vis).slice(0, 40).map((e) => ({ level: +e.tagName[1], text: txt(e).slice(0, 120) })).filter((h) => h.text),
+        nav: [...document.querySelectorAll('nav a, header a, [role=navigation] a')].filter(vis).map((e) => txt(e).slice(0, 40)).filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 25),
+        buttons: [...document.querySelectorAll('button, a.btn, a[class*="button"], [role=button], input[type=submit]')].filter(vis).map((e) => txt(e).slice(0, 40) || e.value || '').filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 25),
+        fields: [...document.querySelectorAll('input:not([type=hidden]), textarea, select')].filter(vis).map((e) => e.getAttribute('placeholder') || e.getAttribute('aria-label') || e.getAttribute('name') || e.type).filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 25) };
+    });
+    fs.writeFileSync(path.join(OUT, 'explore.json'), JSON.stringify({ url: page.url(), ...facts, elements: els }, null, 1));
     console.log(`URL: ${page.url()}\nTITLE: ${await page.title()}\n--- interactive elements ---\n` + els.join('\n'));
-    console.log(`Screenshot: ${OUT}/explore.png`);
+    console.log(`Screenshot: ${OUT}/explore.png   Page facts: ${OUT}/explore.json`);
   };
 
   const timing = { steps: [] };

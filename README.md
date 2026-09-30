@@ -40,11 +40,11 @@ cd demo
 bash setup.sh
 ```
 
-or drop the seven scripts into a tools folder without cloning:
+or drop the eight scripts into a tools folder without cloning:
 
 ```bash
 mkdir -p ~/.cache/demo-video/bin && cd ~/.cache/demo-video/bin && \
-for f in setup.sh make.sh scenario.py tts.py record.js mix.py check.py; do curl -fsSL -o $f https://raw.githubusercontent.com/Hmache/demo/main/$f; done && \
+for f in setup.sh make.sh scenario.py tts.py record.js mix.py check.py draft.py; do curl -fsSL -o $f https://raw.githubusercontent.com/Hmache/demo/main/$f; done && \
 chmod +x *.sh && ./setup.sh
 ```
 
@@ -115,7 +115,7 @@ Structure: `## Title` = section card, `# Title` = chapter label. Use `#2` for th
 | `mobile` | 390×844 phone viewport at 2×, touch cursor, framed |
 | `minimal` | just the recording and the captions |
 
-Any setting written after `template:` overrides it. Other settings: `size`, `hd`, `frame`, `transitions`, `logo`, `qr`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `show keys`, `cookies: dismiss`, `captions`, `music`, `music volume`, `gif`, `voice`, `engine`, `lang`, `speed`, `pronounce`, `typing speed`, `pause`, `login state`. `presenter: bubble` + `photo: me.jpg` adds a small pill with your photo and live voice bars; it is opt-in because it covers a corner of the page.
+Any setting written after `template:` overrides it. Other settings: `size`, `hd`, `frame`, `transitions`, `logo`, `qr`, `title`, `subtitle`, `outro`, `brand color`, `progress bar`, `highlight clicks`, `show keys`, `cookies: dismiss`, `captions`, `recap` (chapter list card before the outro, auto with 3+ chapters), `music`, `music volume`, `gif`, `voice`, `engine`, `lang`, `speed`, `pronounce`, `typing speed`, `pause`, `login state`. `presenter: bubble` + `photo: me.jpg` adds a small pill with your photo and live voice bars; it is opt-in because it covers a corner of the page.
 
 ## Run it
 
@@ -130,6 +130,7 @@ bash make.sh scenario.txt out demo.mp4          # narration -> dry run -> record
 Useful partial runs:
 
 ```bash
+python3 draft.py https://app.example.com out            # no scenario yet: reads the page, writes out/draft-scenario.txt to edit
 python3 scenario.py scenario.txt                        # show the parsed JSON (checks the syntax)
 python3 tts.py --preview "One line" out fr-fr           # the same line in every French voice -> out/voices-preview.mp3
 node record.js scenario.txt out --dry                   # check every target without recording
@@ -137,13 +138,13 @@ python3 mix.py out/scenario.json out demo.mp4           # re-mix only (captions,
 python3 check.py out demo.mp4                           # rebuild review.png + sync report
 ```
 
-Outputs in `out/`: `demo.mp4`, `captions.srt`, `review.png`, `explore.png`, `scenario.json`, `voice.wav`, `frames/`, and `demo.gif` when `gif: yes`.
+Outputs in `out/`: `demo.mp4`, `captions.srt`, `review.png`, `explore.png`, `explore.json`, `scenario.json`, `voice.wav`, `frames/`, and `demo.gif` when `gif: yes`.
 
 ## How it works
 
 1. **Narration first** — `tts.py` rewrites each line for speech (URLs, prices, units, symbols, `pronounce` map), synthesises one clip per step, polishes it (silence trim, high-pass, presence EQ, compression, −16 LUFS) and measures its length.
-2. **Record to the voice's timing** — `record.js` plays the steps with Playwright and holds each step at least as long as its narration. Frames come from the Chrome DevTools screencast, timestamped on the same clock as the steps, so audio and video stay in sync within ~50 ms. The cursor, ripples, highlights and callouts are drawn through the CSSOM, so they also work on sites with a strict Content-Security-Policy.
-3. **Mix** — `mix.py` places each clip at its step's start, burns in captions and chapter labels (ASS, Inter font), draws the frame, cards, QR code and progress bar, ducks the music under the voice and encodes H.264 MP4.
+2. **Record to the voice's timing** — `record.js` plays the steps with Playwright and holds each step at least as long as its narration. Frames come from the Chrome DevTools screencast, timestamped on the same clock as the steps, so audio and video stay in sync within ~50 ms. The cursor eases along a gentle arc between targets; it, the ripples, highlights and callouts are drawn through the CSSOM, so they also work on sites with a strict Content-Security-Policy.
+3. **Mix** — `mix.py` places each clip at its step's start, burns in captions and chapter labels (ASS, Inter font), draws the frame, the title / section / recap / outro cards, QR code and progress bar, ducks the music under the voice and encodes H.264 MP4.
 4. **Review** — `check.py` extracts one frame per step into a contact sheet and compares voice onsets to step starts.
 
 ## Voices

@@ -322,10 +322,12 @@ def card(dst, lines, secs, qr=None):
     n = len(lines)
     shift = -round(H * 0.16) if qr else 0
     draws = []
-    for k, (text, ratio, color) in enumerate(lines):
+    for k, line in enumerate(lines):
+        text, ratio, color = line[:3]
+        x = line[3] if len(line) > 3 else "(w-text_w)/2"          # optional fixed x: a left-aligned list
         fsz = round(H * ratio)
         y = f"(h-text_h)/2+{round(H * 0.075 * (k - (n - 1) / 2)) + shift:+d}"
-        draws.append(f"drawtext={fnt}text='{esc(text)}':fontsize={fsz}:fontcolor={color}:x=(w-text_w)/2:y={y}")
+        draws.append(f"drawtext={fnt}text='{esc(text)}':fontsize={fsz}:fontcolor={color}:x={x}:y={y}")
     c = ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x0f172a:s={W}x{H}:r={FPS}:d={secs}",
          "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
     fc = "[0:v]" + ",".join(draws) + "[t]"
@@ -360,6 +362,15 @@ if parts or sc.get("outro"):
         shutil.move(DST, f"{OUT}/main.mp4")
         DST_MAIN = f"{OUT}/main.mp4"
     parts.append(DST_MAIN)
+    # Recap card: the chapter labels as a short list before the call-to-action ("recap: yes|no|auto", auto = 3+ chapters).
+    labels = [st["label"] for st in timing["steps"] if st.get("label")] if sc.get("chapters", True) else []
+    recap = sc.get("recap", "auto")
+    if (recap is True or (recap == "auto" and len(labels) >= 3 and sc.get("outro"))) and labels:
+        items = [f"{k + 1:02d}   {l}" for k, l in enumerate(labels[:6])]
+        left = round(W / 2 - 0.5 * 0.55 * round(H * 0.042) * max(len(i) for i in items))     # common left edge (Inter ~0.55 em/char)
+        lines = [(sc.get("recapTitle", "In this demo"), 0.03, f"0x{BRAND}", left)] + [(i, 0.042, "white", left) for i in items]
+        card(f"{OUT}/card_recap.mp4", lines, sc.get("recapSeconds", 1.6 + 0.7 * min(len(labels), 6)))
+        parts.append(f"{OUT}/card_recap.mp4")
     if sc.get("outro"):
         qr = None
         if sc.get("qr"):

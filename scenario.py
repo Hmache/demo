@@ -33,7 +33,7 @@ SETTINGS = {
     "pronounce": "pronounce", "pronunciation": "pronounce", "polish": "polish", "voice polish": "polish",
     "sentence pause": "sentencePause", "clause pause": "clausePause", "stability": "stability", "style": "style", "similarity": "similarity",
     "template": "template", "qr": "qr", "presenter": "presenter", "presenter image": "presenterImage", "photo": "presenterImage",
-    "transitions": "transitions", "font": "captionFont", "chapters": "chapters",
+    "transitions": "transitions", "font": "captionFont", "chapters": "chapters", "recap": "recap", "summary": "recap",
 }
 TEMPLATES = {   # bundles of settings; explicit settings written after `template:` override them
     "launch":      {"viewport": {"width": 1920, "height": 1080}, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "chapters": True},
@@ -207,6 +207,8 @@ def parse(text):
                 sc.setdefault("viewport", {"width": 390, "height": 844}); sc.setdefault("scale", 2)
         elif key == "cookies":
             sc["cookies"] = "dismiss" if val.lower() in YES | {"dismiss", "hide", "decline"} else val
+        elif key == "recap":
+            sc["recap"] = "auto" if val.lower() == "auto" else val.lower() in YES
         elif key in ("captions", "gif", "highlightClicks", "progressBar", "frame", "showKeys", "transitions", "chapters"):
             sc[key] = val.lower() in YES
         elif key in ("musicVolume", "gapAfterVoice"):
