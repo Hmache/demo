@@ -25,7 +25,7 @@ p = json.load(open(f"{OUT}/explore.json"))
 
 # 2. Settings from the page.
 site = re.sub(r"^www\.", "", re.sub(r"^https?://", "", URL).split("/")[0])
-title = (p.get("title") or site).split(" | ")[0].split(" — ")[0].split(" - ")[0].strip()[:40]
+title = re.split(r" [|—·–-] ", p.get("title") or site)[0].strip()[:40]     # "Acme · Orders | Home" -> "Acme"
 desc = (p.get("description") or "").strip()
 subtitle = (desc.split(". ")[0])[:60] if desc else ""
 lang = LANG or (p.get("lang") or "en")[:2].lower()
