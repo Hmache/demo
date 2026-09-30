@@ -1,6 +1,15 @@
 # demo
 
-Turn **a URL + a scenario written in plain text** into a narrated product demo video.
+Turn **a URL + a scenario written in plain text** into a narrated product demo video — AI voice-over, captions, cards and music, rendered locally for free.
+
+<p align="center"><img src="https://github.com/user-attachments/assets/e2cb53da-9212-44bb-a10d-c0117bb78cdd" width="800" alt="16-second preview of a demo rendered by the skill" /></p>
+
+**Quick start** (the first run also downloads Chromium and the voice model, ~500 MB)
+
+```bash
+git clone https://github.com/Hmache/demo.git && cd demo && bash setup.sh   # Node 18+, Python 3.10+, ffmpeg
+bash make.sh examples/pypi.txt out pypi-demo.mp4                        # the README video: -> out/pypi-demo.mp4 + review.png
+```
 
 Headless Chromium plays the scenario with a visible animated cursor and click ripples, an AI voice narrates each step, captions are burned in — plus a production layer: title / section / outro cards with crossfades, a framed browser on a brand-tinted gradient, chapter labels, logo watermark, spotlight highlights, zooms, callouts, keyboard badges, a progress bar, a QR code on the outro, a phone preset and ducked background music (generated if you have none). Output: MP4 (+ optional GIF and `.srt` captions), and a `review.png` contact sheet to check the result at a glance.
 
@@ -107,7 +116,7 @@ One click opens the full order history.
 
 Actions: `click` · `hover over` · `type "…" into` · `fill … with "…"` · `select "…" in` · `press` · `scroll down / up / to` · `highlight` · `zoom into` / `zoom out` · `callout "…" at` · `dismiss cookies` · `wait 2s` · `wait for` · `go to` · `js:`.
 
-Structure: `## Title` = section card, `# Title` = chapter label. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. `$VAR` in typed text is read from the environment at render time, so a login is `> fill "Password" with "$DEMO_PASS"` + `DEMO_PASS=… bash make.sh …`. See [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
+Structure: `## Title` = section card, `# Title` = chapter label. Use `#2` for the 2nd match, or a CSS selector when the text is ambiguous. `$VAR` in typed text is read from the environment at render time, so a login is `> fill "Password" with "$DEMO_PASS"` + `DEMO_PASS=… bash make.sh …`. See [`examples/pypi.txt`](examples/pypi.txt) (the README video), [`example-scenario.txt`](example-scenario.txt) and the full reference in [`SKILL.md`](SKILL.md).
 
 ### Templates
 
