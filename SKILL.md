@@ -39,7 +39,7 @@ mkdir -p ~/.cache/demo-video/bin && cp <this skill's folder>/{setup.sh,make.sh,s
 chmod +x ~/.cache/demo-video/bin/*.sh && ~/.cache/demo-video/bin/setup.sh
 ```
 
-Skip if `~/.cache/demo-video/bin/check.py` already exists.
+Skip if `~/.cache/demo-video/bin/draft.py` already exists.
 
 ## 3. The scenario is a plain-text file
 
