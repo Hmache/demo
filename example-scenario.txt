@@ -10,7 +10,7 @@ qr: https://acme.com/signup
 brand color: #2563eb
 music: auto
 cookies: dismiss
-// logo: acme.png        photo: presenter.jpg
+// logo: acme.png        presenter: bubble  photo: presenter.jpg   (opt-in: the pill covers part of the page)
 
 ## Getting started
 

@@ -206,7 +206,8 @@ def circle_photo(src, size):
     return im
 
 
-PRESENTER = sc.get("presenter") if HAS_VOICE else None
+# Opt-in only (`presenter: bubble` in the scenario): the pill covers part of the page, so no template turns it on.
+PRESENTER = sc.get("presenter") if HAS_VOICE and sc.get("presenter") not in (None, False, "", "no", "none", "off") else None
 pill = None
 if PRESENTER:
     from PIL import Image, ImageDraw

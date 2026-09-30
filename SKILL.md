@@ -18,9 +18,9 @@ The voice drives the timing: each narration clip is generated **first**, then th
 | Narration language / voice | same language as the user's request; Kokoro `af_heart` (en) / `ff_siwis` (fr) |
 | Resolution | 1920×1080 (`size: mobile` for a phone demo; 1280×720 for quick drafts or GIFs) |
 | Captions, progress bar, click highlights, key badges | on |
-| Template | `template: launch` (framed, presenter bubble, chapters, transitions) unless the user wants raw screen (`walkthrough`), a phone (`mobile`), a vertical social clip (`social`) or nothing extra (`minimal`) |
+| Template | `template: launch` (framed, chapters, transitions) unless the user wants raw screen (`walkthrough`), a phone (`mobile`), a vertical social clip (`social`) or nothing extra (`minimal`) |
 | Title / section / outro cards | on: product name + tagline, one `## Section` per part of the demo, a call-to-action outro with a QR code when there is a URL |
-| Presenter photo, logo | only if the user provides the files (ask once, in the same question as the URL/scenario) |
+| Presenter photo, logo | only if the user provides the files (ask once, in the same question as the URL/scenario); the presenter pill stays off unless they ask for it |
 | Music | `music: auto` (a soft generated ambient bed, ducked under the voice) unless the user supplies a track or says no music |
 | Login | none; if the app needs one, ask for test credentials or a Playwright `storageState` file — never store credentials in the skill or in memory |
 
@@ -55,7 +55,6 @@ outro: Try it free at acme.com
 qr: https://acme.com/signup
 brand color: #2563eb
 logo: acme-logo.png
-photo: presenter.jpg
 music: auto
 cookies: dismiss
 
@@ -108,8 +107,8 @@ Everything ends up in one place: the customer's history.
 **Targets** are what the viewer sees: a button or link label, a field's placeholder or label, or any visible text. `#N` picks the N-th match; a bare role word (`checkbox`, `button`, `link`, `textbox`…) picks by role. A CSS selector (`.toggle`, `#save`, `input[name=q]`) also works when text is ambiguous. Page loads after a click or Enter are detected automatically.
 
 **Settings** (all optional except `url`):
-- Template: `template: launch | walkthrough | social | mobile | minimal` sets sensible bundles (size, frame, presenter, chapters, transitions); any setting written after it overrides.
-- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (closing card — the call-to-action) + `qr: https://…` (QR code under it), `transitions: yes` (0.5 s crossfades between cards and the recording), `brand color` (#hex for the gradient, labels, callouts, highlights and progress bar), `logo: file.png` (watermark, bottom-right), `presenter: bubble` + `photo: me.jpg` (a pill with the presenter's photo and voice-reactive bars, bottom-left of the recording), `chapters` (yes/no: the `#` labels), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `font` (caption font), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
+- Template: `template: launch | walkthrough | social | mobile | minimal` sets sensible bundles (size, frame, chapters, transitions); any setting written after it overrides.
+- Look: `size` (`1920x1080`, or a preset: `mobile`, `tablet`, `desktop`, `square`, `vertical`), `hd: yes` (retina-sharp, output = 2× the size; slower encode), `frame: yes` (browser floats with rounded corners and a shadow on a gradient tinted with the brand colour; captions sit below it), `title` + `subtitle` (2.5 s intro card), `outro` (closing card — the call-to-action) + `qr: https://…` (QR code under it), `transitions: yes` (0.5 s crossfades between cards and the recording), `brand color` (#hex for the gradient, labels, callouts, highlights and progress bar), `logo: file.png` (watermark, bottom-right), `presenter: bubble` + `photo: me.jpg` (opt-in, off in every template: a pill with the presenter's photo and voice-reactive bars, bottom-left of the recording — it covers part of the page, so only add it when the user asks for it), `chapters` (yes/no: the `#` labels), `progress bar` (yes/no), `highlight clicks` (yes/no: spotlight ring on each click target), `show keys` (yes/no: a badge like `⌘ + K` on every `> press`), `captions` (yes/no), `font` (caption font), `gif` (yes/no). On `size: mobile` the cursor becomes a touch dot.
 - Behaviour: `cookies: dismiss` (auto-dismiss banners after every page load), `typing speed` (ms per char, 55), `pause` (silence after each line, 0.6 s), `locale`, `login state` (Playwright storageState file).
 - Secrets: text in `type`/`fill` can use `$NAME` — it is read from the environment when rendering, so a login step is `> fill "Email" with "$DEMO_USER"` + `> fill "Password" with "$DEMO_PASS"` and the render command is `DEMO_USER=… DEMO_PASS=… make.sh …`. Ask the user for test credentials in chat, pass them only on that command line, never write them in the scenario, the skill or memory. Password fields show dots on screen anyway.
 - Voice: `voice`, `engine` (kokoro / openai / elevenlabs / none), `lang`, `speed` (0.95 = calm demo pace), `pronounce` (`Parla=Par-la, Weepo=Wee-po` — how brand names are spoken), `polish` (yes/no: the audio chain below), `sentence pause` (0.35 s), `music` (path to an mp3, or `auto` for a generated soft ambient bed — always ducked under the voice), `music volume` (0.25), `model`, `instructions` (OpenAI voice tone), `stability` / `style` (ElevenLabs).

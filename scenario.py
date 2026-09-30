@@ -36,7 +36,7 @@ SETTINGS = {
     "transitions": "transitions", "font": "captionFont", "chapters": "chapters",
 }
 TEMPLATES = {   # bundles of settings; explicit settings written after `template:` override them
-    "launch":      {"viewport": {"width": 1920, "height": 1080}, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "presenter": "bubble", "chapters": True},
+    "launch":      {"viewport": {"width": 1920, "height": 1080}, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "chapters": True},
     "walkthrough": {"viewport": {"width": 1920, "height": 1080}, "frame": False, "progressBar": True, "highlightClicks": True, "transitions": True, "chapters": True},
     "social":      {"viewport": {"width": 1080, "height": 1920}, "scale": 1, "frame": True, "progressBar": True, "highlightClicks": True, "transitions": True, "captions": True},
     "mobile":      {"viewport": {"width": 390, "height": 844}, "mobile": True, "scale": 2, "frame": True, "progressBar": True, "transitions": True},

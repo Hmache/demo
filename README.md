@@ -16,7 +16,6 @@ template: launch
 title: Acme Orders
 outro: Try it free at acme.com
 qr: https://acme.com/signup
-photo: me.jpg
 music: auto
 
 ## The dashboard
